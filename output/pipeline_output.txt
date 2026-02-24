@@ -1,0 +1,113 @@
+================================================================================
+  Quantum-Classical Hybrid ML System — Full Pipeline Output
+  Date: 2026-02-24
+  Environment: WSL2 Ubuntu (Python 3.10.19) | TF 2.15.0 | Cirq 1.3.0
+  Command: python main.py
+================================================================================
+
+Quantum-Classical Hybrid ML System
+============================================================
+  NumPy:  1.24.3
+  Cirq:   1.3.0
+  SymPy:  1.12
+  Platform: Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39
+============================================================
+
+============================================================
+  1. Loading Iris Dataset
+============================================================
+  DatasetInfo(name='iris', n_features=4, n_classes=3, train_size=120, test_size=30)
+  Train: (120, 4), Test: (30, 4)
+
+============================================================
+  2. Building Quantum Circuit
+============================================================
+  Encoding:  AngleEncoding(rotation=Y, qubits=4)
+  Ansatz:    HardwareEfficient(layers=3, entanglement=linear)
+  Params:    24
+
+  Sample circuit:
+(0, 0): ───Ry(0.028π)───Ry(0.749π)───Rz(0.312π)───@───Ry(1.2π)───Rz(1.66π)────────────────@────────────Ry(0.608π)───Rz(1.22π)────────────────@────────────────────
+                                                  │                                       │                                                  │
+(0, 1): ───Ry(0.375π)───Ry(1.9π)─────Rz(0.312π)───X───@──────────Ry(1.42π)───Rz(0.425π)───X────────────@────────────Ry(1.05π)───Rz(0.279π)───X────────────@───────
+                                                      │                                                │                                                  │
+(0, 2): ───Ry(0.052π)───Ry(1.46π)────Rz(0.116π)───────X──────────@───────────Ry(0.041π)───Rz(0.364π)───X────────────@───────────Ry(0.864π)───Rz(0.584π)───X───@───
+                                                                 │                                                  │                                         │
+(0, 3): ───Ry(0.042π)───Ry(1.2π)─────Rz(1.73π)───────────────────X───────────Ry(1.94π)────Rz(0.367π)────────────────X───────────Ry(0.582π)───Rz(0.733π)───────X───
+
+============================================================
+  3. Circuit Resource Analysis
+============================================================
+=== Circuit Resource Profile ===
+  Qubits        : 4
+  Depth         : 14
+  Total gates   : 37
+  1Q gates      : 28
+  2Q gates      : 9
+  Multi-Q gates : 0
+  Parameters    : 0
+  T-count       : 0
+  Gate breakdown:
+    Ry                   : 16
+    Rz                   : 12
+    CXPowGate            : 9
+
+============================================================
+  4. Extracting Quantum Features (Cirq Simulation)
+============================================================
+  Processing 120 train + 30 test samples...
+  Feature extraction: 0.4s
+  Quantum features shape: (120, 4)
+
+============================================================
+  5. Training Quantum-Enhanced SVM
+============================================================
+  Train accuracy: 0.8583
+  Test accuracy:  0.8667
+
+  Classification Report (Test):
+              precision    recall  f1-score   support
+
+      setosa       1.00      1.00      1.00        10
+  versicolor       0.80      0.80      0.80        10
+   virginica       0.80      0.80      0.80        10
+
+    accuracy                           0.87        30
+   macro avg       0.87      0.87      0.87        30
+weighted avg       0.87      0.87      0.87        30
+
+
+============================================================
+  6. Classical Baseline Comparison
+============================================================
+  Classical SVM (RBF):
+    Train: 0.9750  |  Test: 0.9667
+  Quantum-Enhanced SVM:
+    Train: 0.8583  |  Test: 0.8667
+  Delta (quantum - classical): -0.1000
+
+============================================================
+  7. Noise Impact Analysis
+============================================================
+  Original gates: 37
+  Noisy gates:    74 (added noise channels)
+
+============================================================
+  8. Entanglement Topology Comparison
+============================================================
+  linear      depth= 13  gates= 33  2Q=  9
+  circular    depth= 18  gates= 36  2Q= 12
+  full        depth= 19  gates= 42  2Q= 18
+  star        depth= 15  gates= 33  2Q=  9
+
+============================================================
+  SUMMARY
+============================================================
+  Dataset:          Iris (3 classes, 4 features)
+  Qubits:           4
+  Circuit depth:    3 layers, 24 parameters
+  Quantum SVM acc:  0.8667
+  Classical SVM:    0.9667
+  Total time:       3.9s
+
+  All components operational.

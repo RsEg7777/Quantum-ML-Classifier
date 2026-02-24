@@ -1,0 +1,54 @@
+================================================================================
+  Quantum-Classical Hybrid ML System — Test Suite Results
+  Date: 2026-02-24
+  Environment: WSL2 Ubuntu (Python 3.10.19) | pytest 9.0.2
+  Command: python -m pytest tests/ -v --tb=short
+================================================================================
+
+platform linux -- Python 3.10.19, pytest-9.0.2, pluggy-1.6.0
+rootdir: /mnt/e/Quantum ML Classifier
+configfile: pyproject.toml
+collected 40 items
+
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_init_default .............. PASSED [  2%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_n_params .................. PASSED [  5%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_symbols ................... PASSED [  7%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_build ..................... PASSED [ 10%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_entanglement_topologies[linear] PASSED [ 12%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_entanglement_topologies[full] PASSED [ 15%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_entanglement_topologies[circular] PASSED [ 17%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_entanglement_topologies[star] PASSED [ 20%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_custom_rotation_gates ..... PASSED [ 22%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_invalid_rotation_gate ..... PASSED [ 25%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_initial_params_random ..... PASSED [ 27%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_initial_params_zeros ...... PASSED [ 30%]
+tests/unit/test_circuits.py::TestHardwareEfficientAnsatz::test_initial_params_identity ... PASSED [ 32%]
+tests/unit/test_circuits.py::TestStronglyEntanglingAnsatz::test_init ..................... PASSED [ 35%]
+tests/unit/test_circuits.py::TestStronglyEntanglingAnsatz::test_n_params ................. PASSED [ 37%]
+tests/unit/test_circuits.py::TestStronglyEntanglingAnsatz::test_build .................... PASSED [ 40%]
+tests/unit/test_circuits.py::TestVQC::test_init_default .................................. PASSED [ 42%]
+tests/unit/test_circuits.py::TestVQC::test_init_strongly_entangling ...................... PASSED [ 45%]
+tests/unit/test_circuits.py::TestVQC::test_init_custom_ansatz ............................ PASSED [ 47%]
+tests/unit/test_circuits.py::TestVQC::test_build ......................................... PASSED [ 50%]
+tests/unit/test_circuits.py::TestVQC::test_get_circuit_caching ........................... PASSED [ 52%]
+tests/unit/test_circuits.py::TestVQC::test_resolve ....................................... PASSED [ 55%]
+tests/unit/test_circuits.py::TestVQC::test_repr .......................................... PASSED [ 57%]
+tests/unit/test_circuits.py::TestVQCSimulation::test_simulation_runs ..................... PASSED [ 60%]
+tests/unit/test_circuits.py::TestVQCSimulation::test_different_params_different_states .... PASSED [ 62%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_init_default ....................... PASSED [ 65%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_init_custom_rotation ............... PASSED [ 67%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_invalid_rotation ................... PASSED [ 70%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_symbols ............................ PASSED [ 72%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_encode_parametric .................. PASSED [ 75%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_encode_with_data ................... PASSED [ 77%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_encode_xyz ......................... PASSED [ 80%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_scaling ............................ PASSED [ 82%]
+tests/unit/test_encodings.py::TestAngleEncoding::test_resolve ............................ PASSED [ 85%]
+tests/unit/test_encodings.py::TestDenseAngleEncoding::test_init .......................... PASSED [ 87%]
+tests/unit/test_encodings.py::TestDenseAngleEncoding::test_max_features_exceeded ......... PASSED [ 90%]
+tests/unit/test_encodings.py::TestDenseAngleEncoding::test_encode ........................ PASSED [ 92%]
+tests/unit/test_encodings.py::TestHadamardAngleEncoding::test_init ....................... PASSED [ 95%]
+tests/unit/test_encodings.py::TestHadamardAngleEncoding::test_encode ..................... PASSED [ 97%]
+tests/unit/test_encodings.py::TestEncodingSimulation::test_angle_encoding_simulation ..... PASSED [100%]
+
+================================ 40 passed in 2.40s ================================

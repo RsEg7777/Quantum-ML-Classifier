@@ -1,0 +1,27 @@
+# Experiment: Encoding Scheme Comparison
+# Compares angle, IQP, and amplitude encoding strategies
+
+experiment:
+  name: "encoding_comparison"
+  suite: "architecture"
+  description: "Compare quantum encoding schemes on classification accuracy"
+
+sweep:
+  parameter: "encoding"
+  values: ["angle", "iqp", "amplitude"]
+
+base_config:
+  n_qubits: 4
+  n_layers: 3
+  ansatz: "hardware_efficient"
+  entanglement: "linear"
+
+data:
+  dataset: "iris"
+  n_features: 4
+  test_size: 0.2
+  seed: 42
+
+metrics:
+  - train_accuracy
+  - test_accuracy

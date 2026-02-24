@@ -1,0 +1,178 @@
+# =============================================================================
+# Quantum ML Classifier - .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# -----------------------------------------------------------------------------
+# Virtual Environments
+# -----------------------------------------------------------------------------
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+conda-env/
+
+# -----------------------------------------------------------------------------
+# IDE / Editors
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# -----------------------------------------------------------------------------
+# Jupyter Notebooks
+# -----------------------------------------------------------------------------
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+notebooks/.ipynb_checkpoints/
+
+# -----------------------------------------------------------------------------
+# Testing & Coverage
+# -----------------------------------------------------------------------------
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.hypothesis/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.cache
+
+# -----------------------------------------------------------------------------
+# MyPy
+# -----------------------------------------------------------------------------
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# -----------------------------------------------------------------------------
+# Machine Learning Artifacts
+# -----------------------------------------------------------------------------
+# Model checkpoints
+checkpoints/
+*.ckpt
+*.ckpt.*
+*.h5
+*.hdf5
+*.pb
+saved_models/
+models/
+
+# Training logs
+logs/
+runs/
+tensorboard/
+wandb/
+mlruns/
+
+# Data
+data/raw/
+data/processed/
+data/external/
+*.csv
+*.parquet
+*.pickle
+*.pkl
+!configs/**/*.yaml
+
+# Experiment outputs
+outputs/
+results/
+experiments/outputs/
+experiments/results/
+
+# -----------------------------------------------------------------------------
+# Quantum Computing
+# -----------------------------------------------------------------------------
+# IBM Quantum credentials
+.qiskit/
+qiskit-ibm.json
+
+# AWS Braket
+.braket/
+
+# Cirq
+.cirq/
+
+# -----------------------------------------------------------------------------
+# System Files
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -----------------------------------------------------------------------------
+# Secrets & Credentials
+# -----------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+credentials/
+*_secret*
+*_credential*
+
+# -----------------------------------------------------------------------------
+# Documentation Build
+# -----------------------------------------------------------------------------
+docs/_build/
+docs/api/
+site/
+
+# -----------------------------------------------------------------------------
+# Misc
+# -----------------------------------------------------------------------------
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+.cache/
+tmp/
+temp/

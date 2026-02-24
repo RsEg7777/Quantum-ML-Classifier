@@ -1,0 +1,29 @@
+# Experiment: Circuit Depth Scaling
+# Sweeps VQC depth (n_layers) to study expressibility vs trainability
+
+experiment:
+  name: "depth_scaling"
+  suite: "architecture"
+  description: "Measure accuracy and circuit properties as VQC depth increases"
+
+sweep:
+  parameter: "n_layers"
+  values: [1, 2, 3, 5, 8, 10]
+
+base_config:
+  n_qubits: 4
+  encoding: "angle"
+  ansatz: "hardware_efficient"
+  entanglement: "linear"
+
+data:
+  dataset: "iris"
+  n_features: 4
+  test_size: 0.2
+  seed: 42
+
+metrics:
+  - train_accuracy
+  - test_accuracy
+  - n_params
+  - circuit_depth
