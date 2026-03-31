@@ -1,0 +1,10 @@
+[
+  {
+    "id": "e30d8534-8175-4a60-9f02-2afaa06083ec",
+    "filename": "upload_test.csv",
+    "mimeType": "text/csv",
+    "content": "f1,f2,label\n0.1,1.2,A\n0.2,1.1,A\n1.8,3.0,B\n1.9,3.2,B\n2.1,2.9,B\n0.0,1.0,A\n2.2,3.3,B\n0.3,0.9,A\n1.7,2.8,B\n0.4,1.0,A\n",
+    "token": "2355f4c4-56b0-4b45-8290-f637d9af647d",
+    "createdAt": "2026-03-31T11:05:38.488Z"
+  }
+]

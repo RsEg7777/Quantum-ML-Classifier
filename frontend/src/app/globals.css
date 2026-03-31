@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f6fb;
+  --foreground: #111827;
+  --ink: #0f172a;
+  --muted: #475569;
+  --brand: #0b6bcb;
+  --brand-strong: #084b8c;
+  --card: rgba(255, 255, 255, 0.74);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-display), "Segoe UI", sans-serif;
+}
+
+.page-shell {
+  background:
+    radial-gradient(circle at 10% 18%, #bfdbfe 0, rgba(191, 219, 254, 0) 48%),
+    radial-gradient(circle at 86% 2%, #bae6fd 0, rgba(186, 230, 253, 0) 42%),
+    linear-gradient(165deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.card-glass {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 1.5rem;
+  background: var(--card);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--brand);
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.7rem 1.2rem;
+  transition: background-color 180ms ease;
+}
+
+.btn-primary:hover {
+  background: var(--brand-strong);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.7rem 1.2rem;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.info-chip {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(255, 255, 255, 0.56);
+  border-radius: 0.85rem;
+  padding: 0.8rem 0.95rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.07em;
+  padding: 0.2rem 0.6rem;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.status-pill.queued {
+  color: #334155;
+  background: #e2e8f0;
+}
+
+.status-pill.running {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.status-pill.completed {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.status-pill.failed {
+  color: #991b1b;
+  background: #fee2e2;
+}

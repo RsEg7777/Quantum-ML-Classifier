@@ -1,0 +1,22 @@
+[
+  {
+    "id": "9847480f-e66e-40a2-9eab-03c9e555ffbe",
+    "jobType": "training",
+    "datasetId": "csv_upload",
+    "status": "completed",
+    "createdAt": "2026-03-31T11:05:38.590Z",
+    "updatedAt": "2026-03-31T11:05:38.661Z",
+    "message": "Completed by worker service.",
+    "result": {
+      "accuracy": 1,
+      "loss": 0.1967,
+      "notes": "Training completed with classical SVM worker baseline.",
+      "details": {
+        "dataset": "csv_upload",
+        "n_features": 2,
+        "n_classes": 2,
+        "test_samples": 3
+      }
+    }
+  }
+]
