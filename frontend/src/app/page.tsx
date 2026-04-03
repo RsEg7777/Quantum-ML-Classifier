@@ -1,109 +1,136 @@
 import Link from "next/link";
 
 export default function Home() {
-  const navItems = [
-    { label: "Home", href: "/", active: true },
-    { label: "Pricing", href: "/dashboard" },
-    { label: "Video", href: "/dashboard" },
-    { label: "Audio", href: "/dashboard" },
-    { label: "URL Check", href: "/dashboard" },
-    { label: "Image", href: "/dashboard" },
+  const stats = [
+    { label: "Avg Queue Latency", value: "1.2s" },
+    { label: "API Uptime", value: "99.95%" },
+    { label: "Active Connectors", value: "6" },
+    { label: "Typed Endpoints", value: "24" },
   ];
 
-  const particles = [
-    { top: "14%", left: "11%", size: 7, delay: "0s", duration: "8s" },
-    { top: "18%", left: "33%", size: 5, delay: "0.4s", duration: "9s" },
-    { top: "20%", left: "50%", size: 6, delay: "1s", duration: "10s" },
-    { top: "22%", left: "66%", size: 5, delay: "0.8s", duration: "8.2s" },
-    { top: "27%", left: "83%", size: 7, delay: "1.3s", duration: "9.5s" },
-    { top: "39%", left: "8%", size: 6, delay: "1.5s", duration: "10.5s" },
-    { top: "44%", left: "27%", size: 5, delay: "2s", duration: "9.8s" },
-    { top: "46%", left: "45%", size: 8, delay: "1.8s", duration: "11s" },
-    { top: "41%", left: "64%", size: 6, delay: "0.9s", duration: "8.8s" },
-    { top: "47%", left: "89%", size: 7, delay: "1.6s", duration: "9.2s" },
-    { top: "63%", left: "16%", size: 6, delay: "2.5s", duration: "10.6s" },
-    { top: "67%", left: "34%", size: 5, delay: "1.4s", duration: "9.4s" },
-    { top: "72%", left: "49%", size: 7, delay: "0.3s", duration: "8.5s" },
-    { top: "68%", left: "68%", size: 6, delay: "2.1s", duration: "10.3s" },
-    { top: "76%", left: "84%", size: 8, delay: "1.1s", duration: "9.7s" },
-    { top: "86%", left: "26%", size: 7, delay: "2.6s", duration: "10.2s" },
-    { top: "88%", left: "62%", size: 6, delay: "0.7s", duration: "8.7s" },
-    { top: "90%", left: "93%", size: 5, delay: "1.9s", duration: "9.1s" },
+  const features = [
+    {
+      title: "Hybrid Job Orchestration",
+      description:
+        "Create training, inference, and experiment runs with dataset-aware configuration and queue dispatch.",
+    },
+    {
+      title: "Live Queue Visibility",
+      description:
+        "Track running, completed, and failed jobs in real time with adaptive polling and clear status messaging.",
+    },
+    {
+      title: "Secure Access Control",
+      description:
+        "Use credentials or Google login with signed cookies and protected API routes.",
+    },
+    {
+      title: "Worker-Ready Integrations",
+      description:
+        "Connect external workers and storage backends for reliable production workflows.",
+    },
+  ];
+
+  const quickLinks = [
+    { href: "/login", label: "Login" },
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/api/health", label: "API Health" },
   ];
 
   return (
-    <div className="home-shell min-h-screen">
-      <div className="home-particle-layer" aria-hidden="true">
-        {particles.map((particle, index) => (
-          <span
-            key={`particle-${index}`}
-            className="home-particle"
-            style={{
-              top: particle.top,
-              left: particle.left,
-              width: `${particle.size}px`,
-              height: `${particle.size}px`,
-              animationDelay: particle.delay,
-              animationDuration: particle.duration,
-            }}
-          />
-        ))}
-      </div>
+    <div className="page-shell min-h-screen pb-10">
+      <span className="ambient-orb orb-a" aria-hidden="true" />
+      <span className="ambient-orb orb-b" aria-hidden="true" />
 
-      <header className="home-topbar-wrap">
-        <div className="home-topbar">
-          <div className="home-brand">
-            QuantumLens <span>AI</span>
-          </div>
-
-          <nav className="home-nav-links">
-            {navItems.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`home-nav-link ${item.active ? "active" : ""}`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="home-topbar-actions">
-            <Link className="home-icon-button" href="/login" aria-label="Open account">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.75 0-6.75 1.9-6.75 4.25a.75.75 0 0 0 .75.75h12a.75.75 0 0 0 .75-.75c0-2.35-3-4.25-6.75-4.25z" />
-              </svg>
-            </Link>
-            <span className="home-icon-button" aria-hidden="true">
-              ✶
-            </span>
+      <header className="relative z-10 mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-6 md:px-10">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-blue-200/70 bg-white/80 text-sm font-bold text-blue-700 shadow-[0_8px_22px_rgba(30,64,175,0.15)]">
+            QML
+          </span>
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Quantum ML Platform</p>
+            <p className="text-sm font-semibold text-slate-900">Control Center</p>
           </div>
         </div>
+
+        <nav className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/75 px-2 py-2 backdrop-blur">
+          {quickLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-full px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
       </header>
 
-      <main className="home-hero">
-        <div className="home-lens-glow" aria-hidden="true" />
+      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 pb-8 md:px-10">
+        <section className="card-glass fade-up p-8 md:p-10">
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+            <div>
+              <p className="kicker-badge">PRODUCTION FRONTEND</p>
+              <h1 className="mt-5 max-w-3xl text-balance text-4xl font-semibold leading-tight text-slate-950 md:text-6xl">
+                Quantum-classical ML operations, structured for real teams.
+              </h1>
 
-        <h1 className="home-title">
-          Truth Through
-          <br />
-          Technology
-        </h1>
+              <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-700 md:text-xl">
+                Centralize job submission, queue monitoring, and result inspection in one
+                reliable interface built for day-to-day experimentation.
+              </p>
 
-        <p className="home-subtitle">
-          Advanced AI-powered verification for text, images, videos, and audio.
-          Detect misinformation fast with production-ready confidence.
-        </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link className="btn-primary" href="/dashboard">
+                  Open Dashboard
+                </Link>
+                <Link className="btn-ghost" href="/login">
+                  Sign In
+                </Link>
+              </div>
+            </div>
 
-        <div className="home-actions">
-          <Link className="home-cta-primary" href="/dashboard">
-            Start Free Trial
-          </Link>
-          <Link className="home-cta-secondary" href="/login">
-            Explore Features
-          </Link>
-        </div>
+            <aside className="surface-muted p-5 md:p-6">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Platform Snapshot</p>
+              <h2 className="mt-3 text-xl font-semibold text-slate-900">Operational Readiness</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-700">
+                Built for deployment workflows with typed routes, secure authentication,
+                and worker-compatible orchestration.
+              </p>
+
+              <div className="mt-5 space-y-2">
+                <div className="info-chip text-sm text-slate-700">Signed session cookies + Google OAuth</div>
+                <div className="info-chip text-sm text-slate-700">CSV upload pipeline with backend validation</div>
+                <div className="info-chip text-sm text-slate-700">Queue and direct worker dispatch support</div>
+              </div>
+            </aside>
+          </div>
+
+          <div className="mt-8 glow-separator" />
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat) => (
+              <article key={stat.label} className="metric-card">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{stat.value}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="fade-up delay-1 grid gap-4 md:grid-cols-2">
+          {features.map((feature) => (
+            <article key={feature.title} className="card-glass p-6 md:p-7">
+              <h3 className="text-xl font-semibold text-slate-900">{feature.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-700">{feature.description}</p>
+            </article>
+          ))}
+        </section>
       </main>
+
+      <footer className="relative z-10 mx-auto w-full max-w-6xl px-6 pb-8 text-xs text-slate-600 md:px-10">
+        Quantum ML Control Center • Professional frontend for hybrid experimentation workflows
+      </footer>
     </div>
   );
 }
