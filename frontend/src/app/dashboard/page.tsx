@@ -161,23 +161,33 @@ export default function DashboardPage() {
 
   return (
     <main className="page-shell min-h-screen px-6 py-8 md:px-10">
-      <section className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.1fr_1.7fr]">
-        <article className="card-glass p-6 md:p-8">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-3xl font-semibold text-slate-900">Job Builder</h1>
+      <span className="ambient-orb orb-a" aria-hidden="true" />
+      <span className="ambient-orb orb-b" aria-hidden="true" />
+
+      <section className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.08fr_1.72fr]">
+        <article className="card-glass fade-up p-6 md:p-8">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="kicker-badge">JOB ORCHESTRATION</p>
+              <h1 className="mt-3 text-3xl font-semibold text-slate-900">Job Builder</h1>
+            </div>
             <button className="btn-ghost" type="button" onClick={signOut}>
               Sign out
             </button>
           </div>
-          <p className="mt-2 text-sm text-slate-600">
-            Submit training, inference, or experiment jobs to the queue.
+
+          <p className="mt-3 text-sm leading-relaxed text-slate-700">
+            Submit training, inference, or experiment workloads into the queue with
+            dataset-aware configuration.
           </p>
 
-          <form className="mt-6 space-y-4" onSubmit={submitJob}>
-            <label className="block text-sm font-medium text-slate-800">
+          <div className="mt-5 glow-separator" />
+
+          <form className="mt-5 space-y-4" onSubmit={submitJob}>
+            <label className="field-label">
               Job Type
               <select
-                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2"
+                className="select-glass"
                 value={form.jobType}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -192,24 +202,22 @@ export default function DashboardPage() {
               </select>
             </label>
 
-            <label className="block text-sm font-medium text-slate-800">
+            <label className="field-label">
               Dataset
               <select
-                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2"
+                className="select-glass"
                 value={form.datasetId}
-                onChange={(event) =>
-                  {
-                    const nextDataset = event.target.value as DatasetInfo["id"];
-                    if (nextDataset !== "csv_upload") {
-                      setCsvBlobUrl(null);
-                      setCsvFilename(null);
-                    }
-                    setForm((current) => ({
-                      ...current,
-                      datasetId: nextDataset,
-                    }));
+                onChange={(event) => {
+                  const nextDataset = event.target.value as DatasetInfo["id"];
+                  if (nextDataset !== "csv_upload") {
+                    setCsvBlobUrl(null);
+                    setCsvFilename(null);
                   }
-                }
+                  setForm((current) => ({
+                    ...current,
+                    datasetId: nextDataset,
+                  }));
+                }}
               >
                 {datasets.map((dataset) => (
                   <option key={dataset.id} value={dataset.id}>
@@ -220,12 +228,12 @@ export default function DashboardPage() {
             </label>
 
             {form.datasetId === "csv_upload" ? (
-              <label className="block text-sm font-medium text-slate-800">
+              <label className="field-label">
                 CSV File
                 <input
                   type="file"
                   accept=".csv,text/csv"
-                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2"
+                  className="input-glass"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) {
@@ -233,22 +241,24 @@ export default function DashboardPage() {
                     }
                   }}
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Expected format: header row, numeric features, and label in last column.
-                </p>
-                {isUploading ? (
-                  <p className="mt-1 text-xs text-slate-600">Uploading...</p>
-                ) : null}
-                {csvFilename ? (
-                  <p className="mt-1 text-xs text-emerald-700">Uploaded: {csvFilename}</p>
-                ) : null}
+                <div className="surface-muted mt-2 px-3 py-2">
+                  <p className="text-xs text-slate-600">
+                    Expected format: header row, numeric features, and label in last column.
+                  </p>
+                  {isUploading ? (
+                    <p className="mt-1 text-xs text-slate-700">Uploading...</p>
+                  ) : null}
+                  {csvFilename ? (
+                    <p className="mt-1 text-xs font-medium text-emerald-700">Uploaded: {csvFilename}</p>
+                  ) : null}
+                </div>
               </label>
             ) : null}
 
-            <label className="block text-sm font-medium text-slate-800">
+            <label className="field-label">
               Config JSON
               <textarea
-                className="mt-1 min-h-32 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono text-xs"
+                className="textarea-glass font-mono text-xs"
                 value={form.configJson}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -272,16 +282,17 @@ export default function DashboardPage() {
             </button>
           </form>
 
-          {error ? (
-            <p className="mt-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </p>
-          ) : null}
+          {error ? <p className="alert-error text-sm">{error}</p> : null}
         </article>
 
-        <article className="card-glass p-6 md:p-8">
+        <article className="card-glass fade-up delay-1 p-6 md:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl font-semibold text-slate-900">Live Queue</h2>
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-900">Live Queue</h2>
+              <p className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-500">
+                Polling automatically while jobs are running
+              </p>
+            </div>
             <button className="btn-ghost" type="button" onClick={() => void loadJobs()}>
               Refresh
             </button>
@@ -296,14 +307,14 @@ export default function DashboardPage() {
 
           <div className="mt-6 space-y-3">
             {jobs.length === 0 ? (
-              <p className="rounded-xl border border-slate-200 bg-white/70 px-4 py-6 text-center text-sm text-slate-600">
+              <p className="surface-muted px-4 py-6 text-center text-sm text-slate-700">
                 No jobs yet. Submit one from the panel on the left.
               </p>
             ) : (
-              jobs.map((job) => (
+              jobs.map((job, index) => (
                 <article
                   key={job.id}
-                  className="rounded-xl border border-slate-200 bg-white/70 p-4"
+                  className={`queue-item fade-up ${index < 3 ? `delay-${index + 1}` : ""}`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="font-medium text-slate-900">{job.id.slice(0, 8)}</h3>
@@ -314,12 +325,10 @@ export default function DashboardPage() {
                     {job.jobType} on {job.datasetId}
                   </p>
 
-                  <p className="mt-1 text-xs text-slate-500">{job.message ?? "No message"}</p>
+                  <p className="mt-1 text-xs text-slate-600">{job.message ?? "No message"}</p>
 
                   {job.result ? (
-                    <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 p-3 text-xs text-slate-200">
-                      {JSON.stringify(job.result, null, 2)}
-                    </pre>
+                    <pre className="result-panel text-xs">{JSON.stringify(job.result, null, 2)}</pre>
                   ) : null}
                 </article>
               ))
@@ -333,8 +342,8 @@ export default function DashboardPage() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/70 p-3">
-      <p className="text-xs uppercase tracking-wider text-slate-500">{label}</p>
+    <div className="metric-card">
+      <p className="text-xs uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="text-2xl font-semibold text-slate-900">{value}</p>
     </div>
   );

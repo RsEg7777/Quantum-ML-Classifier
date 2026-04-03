@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { AUTH_COOKIE_NAME, createSessionToken, verifyCredentials } from "@/lib/server/auth";
+import {
+  AUTH_COOKIE_NAME,
+  SESSION_TTL_SECONDS,
+  createSessionToken,
+  verifyCredentials,
+} from "@/lib/server/auth";
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -26,7 +31,7 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 12,
+      maxAge: SESSION_TTL_SECONDS,
     });
 
     return response;
