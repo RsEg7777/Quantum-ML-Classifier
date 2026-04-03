@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   AUTH_COOKIE_NAME,
   GOOGLE_OAUTH_STATE_COOKIE_NAME,
+  GOOGLE_OAUTH_STATE_TTL_SECONDS,
   SESSION_TTL_SECONDS,
+  consumeGoogleOAuthState,
   createSessionToken,
   getGoogleOAuthCredentials,
   getGoogleRedirectUri,
@@ -19,41 +21,76 @@ type GoogleUserInfoResponse = {
   email_verified?: boolean;
 };
 
-function buildLoginRedirect(request: NextRequest, errorCode: string): NextResponse {
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("error", errorCode);
+function setGoogleStateCookie(response: NextResponse, nextCookieValue: string | null): void {
+  if (!nextCookieValue) {
+    response.cookies.set({
+      name: GOOGLE_OAUTH_STATE_COOKIE_NAME,
+      value: "",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+    return;
+  }
 
-  const response = NextResponse.redirect(loginUrl);
   response.cookies.set({
     name: GOOGLE_OAUTH_STATE_COOKIE_NAME,
-    value: "",
+    value: nextCookieValue,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 0,
+    maxAge: GOOGLE_OAUTH_STATE_TTL_SECONDS,
   });
+}
+
+function buildLoginRedirect(
+  request: NextRequest,
+  errorCode: string,
+  nextStateCookieValue: string | null = null
+): NextResponse {
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("error", errorCode);
+
+  const response = NextResponse.redirect(loginUrl);
+  setGoogleStateCookie(response, nextStateCookieValue);
 
   return response;
 }
 
 export async function GET(request: NextRequest) {
+  const state = request.nextUrl.searchParams.get("state");
+  const existingStateCookie = request.cookies.get(GOOGLE_OAUTH_STATE_COOKIE_NAME)?.value;
+  const stateValidation = consumeGoogleOAuthState(existingStateCookie, state);
+
   const callbackError = request.nextUrl.searchParams.get("error");
   if (callbackError) {
-    return buildLoginRedirect(request, "google_access_denied");
+    return buildLoginRedirect(
+      request,
+      "google_access_denied",
+      stateValidation.nextCookieValue
+    );
   }
 
   const code = request.nextUrl.searchParams.get("code");
-  const state = request.nextUrl.searchParams.get("state");
-  const expectedState = request.cookies.get(GOOGLE_OAUTH_STATE_COOKIE_NAME)?.value;
 
-  if (!code || !state || !expectedState || state !== expectedState) {
-    return buildLoginRedirect(request, "google_state_mismatch");
+  if (!code || !state || !stateValidation.matched) {
+    return buildLoginRedirect(
+      request,
+      "google_state_mismatch",
+      stateValidation.nextCookieValue
+    );
   }
 
   const credentials = getGoogleOAuthCredentials();
   if (!credentials) {
-    return buildLoginRedirect(request, "google_not_configured");
+    return buildLoginRedirect(
+      request,
+      "google_not_configured",
+      stateValidation.nextCookieValue
+    );
   }
 
   const redirectUri = getGoogleRedirectUri(request.nextUrl.origin);
@@ -75,12 +112,20 @@ export async function GET(request: NextRequest) {
   });
 
   if (!tokenResponse.ok) {
-    return buildLoginRedirect(request, "google_token_exchange_failed");
+    return buildLoginRedirect(
+      request,
+      "google_token_exchange_failed",
+      stateValidation.nextCookieValue
+    );
   }
 
   const tokenPayload = (await tokenResponse.json()) as GoogleTokenResponse;
   if (!tokenPayload.access_token) {
-    return buildLoginRedirect(request, "google_token_missing");
+    return buildLoginRedirect(
+      request,
+      "google_token_missing",
+      stateValidation.nextCookieValue
+    );
   }
 
   const userInfoResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
@@ -91,16 +136,28 @@ export async function GET(request: NextRequest) {
   });
 
   if (!userInfoResponse.ok) {
-    return buildLoginRedirect(request, "google_profile_failed");
+    return buildLoginRedirect(
+      request,
+      "google_profile_failed",
+      stateValidation.nextCookieValue
+    );
   }
 
   const userInfo = (await userInfoResponse.json()) as GoogleUserInfoResponse;
   if (!userInfo.email || userInfo.email_verified !== true) {
-    return buildLoginRedirect(request, "google_email_unverified");
+    return buildLoginRedirect(
+      request,
+      "google_email_unverified",
+      stateValidation.nextCookieValue
+    );
   }
 
   if (!isGoogleEmailAllowed(userInfo.email)) {
-    return buildLoginRedirect(request, "google_email_not_allowed");
+    return buildLoginRedirect(
+      request,
+      "google_email_not_allowed",
+      stateValidation.nextCookieValue
+    );
   }
 
   const token = createSessionToken(userInfo.email);
@@ -117,15 +174,7 @@ export async function GET(request: NextRequest) {
     maxAge: SESSION_TTL_SECONDS,
   });
 
-  response.cookies.set({
-    name: GOOGLE_OAUTH_STATE_COOKIE_NAME,
-    value: "",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  setGoogleStateCookie(response, stateValidation.nextCookieValue);
 
   return response;
 }

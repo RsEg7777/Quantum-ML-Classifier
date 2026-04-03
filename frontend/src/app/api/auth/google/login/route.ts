@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   GOOGLE_OAUTH_STATE_COOKIE_NAME,
   GOOGLE_OAUTH_STATE_TTL_SECONDS,
+  appendGoogleOAuthState,
   getGoogleOAuthCredentials,
   getGoogleRedirectUri,
 } from "@/lib/server/auth";
@@ -34,9 +35,12 @@ export async function GET(request: NextRequest) {
   googleAuthUrl.searchParams.set("include_granted_scopes", "true");
 
   const response = NextResponse.redirect(googleAuthUrl);
+  const existingStateCookie = request.cookies.get(GOOGLE_OAUTH_STATE_COOKIE_NAME)?.value;
+  const nextStateCookie = appendGoogleOAuthState(existingStateCookie, oauthState);
+
   response.cookies.set({
     name: GOOGLE_OAUTH_STATE_COOKIE_NAME,
-    value: oauthState,
+    value: nextStateCookie,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
