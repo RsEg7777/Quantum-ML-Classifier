@@ -6,6 +6,8 @@ import { sql } from "@vercel/postgres";
 import {
   type CreateJobInput,
   type DatasetInfo,
+  type JobProgress,
+  type JobProgressStep,
   type JobSummary,
   CreateJobInputSchema,
   JobSummarySchema,
@@ -19,6 +21,13 @@ interface RetryOptions {
   maxRetries?: number;
   initialDelayMs?: number;
   maxDelayMs?: number;
+}
+
+interface WorkerProgressUpdate {
+  percent: number;
+  stage: string;
+  message?: string;
+  steps?: JobProgressStep[];
 }
 
 async function withRetry<T>(
@@ -122,8 +131,14 @@ async function ensureSchema(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL,
       message TEXT,
-      result_json TEXT
+      result_json TEXT,
+      progress_json TEXT
     )
+  `;
+
+  await sql`
+    ALTER TABLE jobs
+    ADD COLUMN IF NOT EXISTS progress_json TEXT
   `;
 
   schemaInitialized = true;
@@ -153,7 +168,8 @@ function withTimestamps(
   input: CreateJobInput,
   status: JobSummary["status"],
   message?: string,
-  result?: Record<string, unknown>
+  result?: Record<string, unknown>,
+  progress?: JobProgress
 ): JobSummary {
   return JobSummarySchema.parse({
     id,
@@ -164,6 +180,7 @@ function withTimestamps(
     updatedAt: nowIso(),
     message,
     result,
+    progress,
   });
 }
 
@@ -176,6 +193,7 @@ function rowToJob(row: {
   updated_at: Date | string;
   message: string | null;
   result_json: string | null;
+  progress_json: string | null;
 }): JobSummary {
   return JobSummarySchema.parse({
     id: row.id,
@@ -187,6 +205,9 @@ function rowToJob(row: {
     message: row.message ?? undefined,
     result: row.result_json
       ? (JSON.parse(row.result_json) as Record<string, unknown>)
+      : undefined,
+    progress: row.progress_json
+      ? (JSON.parse(row.progress_json) as JobProgress)
       : undefined,
   });
 }
@@ -203,7 +224,17 @@ async function persist(job: JobSummary): Promise<void> {
   await ensureSchema();
 
   await sql`
-    INSERT INTO jobs (id, job_type, dataset_id, status, created_at, updated_at, message, result_json)
+    INSERT INTO jobs (
+      id,
+      job_type,
+      dataset_id,
+      status,
+      created_at,
+      updated_at,
+      message,
+      result_json,
+      progress_json
+    )
     VALUES (
       ${job.id},
       ${job.jobType},
@@ -212,14 +243,16 @@ async function persist(job: JobSummary): Promise<void> {
       ${job.createdAt},
       ${job.updatedAt},
       ${job.message ?? null},
-      ${job.result ? JSON.stringify(job.result) : null}
+      ${job.result ? JSON.stringify(job.result) : null},
+      ${job.progress ? JSON.stringify(job.progress) : null}
     )
     ON CONFLICT (id)
     DO UPDATE SET
       status = EXCLUDED.status,
       updated_at = EXCLUDED.updated_at,
       message = EXCLUDED.message,
-      result_json = EXCLUDED.result_json
+      result_json = EXCLUDED.result_json,
+      progress_json = EXCLUDED.progress_json
   `;
 }
 
@@ -267,7 +300,27 @@ async function dispatchJob(id: string, input: CreateJobInput): Promise<void> {
   await updateJob(id, {
     status: "running",
     message: "Worker accepted the job.",
+    progress: {
+      percent: 8,
+      stage: "Validate request",
+      message: "Worker accepted the job.",
+      steps: [
+        { label: "Validate request", state: "active" },
+        { label: "Load and prepare data", state: "pending" },
+        { label: "Run model execution", state: "pending" },
+        { label: "Aggregate metrics", state: "pending" },
+        { label: "Finalize and persist", state: "pending" },
+      ],
+      updatedAt: nowIso(),
+    },
   });
+
+  const workerPayload = {
+    ...input,
+    jobId: id,
+    progressCallbackUrl: `${appBaseUrl.replace(/\/$/, "")}/api/internal/jobs/progress`,
+    progressCallbackToken: process.env.WORKER_WEBHOOK_SECRET,
+  };
 
   try {
     const response = await withRetry(async () => {
@@ -276,7 +329,7 @@ async function dispatchJob(id: string, input: CreateJobInput): Promise<void> {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(input),
+        body: JSON.stringify(workerPayload),
         cache: "no-store",
       });
 
@@ -305,12 +358,38 @@ async function dispatchJob(id: string, input: CreateJobInput): Promise<void> {
       status: "completed",
       message: "Completed by worker service.",
       result: payload.result,
+      progress: {
+        percent: 100,
+        stage: "Completed",
+        message: "Completed by worker service.",
+        steps: [
+          { label: "Validate request", state: "done" },
+          { label: "Load and prepare data", state: "done" },
+          { label: "Run model execution", state: "done" },
+          { label: "Aggregate metrics", state: "done" },
+          { label: "Finalize and persist", state: "done" },
+        ],
+        updatedAt: nowIso(),
+      },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     await updateJob(id, {
       status: "failed",
       message: `Worker dispatch error: ${message}`,
+      progress: {
+        percent: 100,
+        stage: "Execution failed",
+        message: `Worker dispatch error: ${message}`,
+        steps: [
+          { label: "Validate request", state: "done" },
+          { label: "Load and prepare data", state: "done" },
+          { label: "Run model execution", state: "error" },
+          { label: "Aggregate metrics", state: "pending" },
+          { label: "Finalize and persist", state: "pending" },
+        ],
+        updatedAt: nowIso(),
+      },
     });
   }
 }
@@ -387,8 +466,9 @@ export async function listJobs(): Promise<JobSummary[]> {
     updated_at: Date | string;
     message: string | null;
     result_json: string | null;
+    progress_json: string | null;
   }>`
-    SELECT id, job_type, dataset_id, status, created_at, updated_at, message, result_json
+    SELECT id, job_type, dataset_id, status, created_at, updated_at, message, result_json, progress_json
     FROM jobs
     ORDER BY created_at DESC
   `;
@@ -412,8 +492,9 @@ export async function getJob(id: string): Promise<JobSummary | null> {
     updated_at: Date | string;
     message: string | null;
     result_json: string | null;
+    progress_json: string | null;
   }>`
-    SELECT id, job_type, dataset_id, status, created_at, updated_at, message, result_json
+    SELECT id, job_type, dataset_id, status, created_at, updated_at, message, result_json, progress_json
     FROM jobs
     WHERE id = ${id}
     LIMIT 1
@@ -440,4 +521,28 @@ export async function createJob(rawInput: unknown): Promise<JobSummary> {
 export async function executeQueuedJob(id: string, rawInput: unknown): Promise<void> {
   const input = validate(rawInput);
   await dispatchJob(id, input);
+}
+
+export async function updateJobProgress(
+  id: string,
+  progressUpdate: WorkerProgressUpdate
+): Promise<void> {
+  const existing = await getJob(id);
+  if (!existing || existing.status === "completed" || existing.status === "failed") {
+    return;
+  }
+
+  const boundedPercent = Math.min(100, Math.max(0, Math.round(progressUpdate.percent)));
+
+  await updateJob(id, {
+    status: "running",
+    message: progressUpdate.message ?? existing.message,
+    progress: {
+      percent: boundedPercent,
+      stage: progressUpdate.stage,
+      message: progressUpdate.message,
+      steps: progressUpdate.steps,
+      updatedAt: nowIso(),
+    },
+  });
 }

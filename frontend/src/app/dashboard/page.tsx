@@ -24,6 +24,195 @@ type FormState = {
   configJson: string;
 };
 
+type StepState = "done" | "active" | "pending" | "error";
+
+type ExecutionStep = {
+  label: string;
+  state: StepState;
+};
+
+type JobExecutionDetails = {
+  progress: number;
+  stageLabel: string;
+  elapsedLabel: string;
+  etaLabel: string;
+  isLongRunning: boolean;
+  steps: ExecutionStep[];
+};
+
+const STEP_LABELS = [
+  "Validate request",
+  "Load and prepare data",
+  "Run model execution",
+  "Aggregate metrics",
+  "Finalize and persist",
+] as const;
+
+function getExpectedDurationSeconds(job: JobSummary): number {
+  const baseByJobType: Record<JobType, number> = {
+    training: 180,
+    experiment: 130,
+    inference: 55,
+  };
+
+  let expected = baseByJobType[job.jobType];
+
+  if (job.datasetId === "csv_upload") {
+    expected += 35;
+  }
+
+  if (job.datasetId === "mnist_binary") {
+    expected += 30;
+  }
+
+  return expected;
+}
+
+function getRuntimeSeconds(job: JobSummary): number {
+  const startedAt = Date.parse(job.createdAt);
+  if (Number.isNaN(startedAt)) {
+    return 0;
+  }
+
+  const endedAt =
+    job.status === "completed" || job.status === "failed"
+      ? Date.parse(job.updatedAt)
+      : Date.now();
+
+  if (Number.isNaN(endedAt)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round((endedAt - startedAt) / 1000));
+}
+
+function formatDuration(totalSeconds: number): string {
+  const safe = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(safe / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (safe % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function getJobProgress(job: JobSummary): number {
+  if (job.progress) {
+    return Math.max(0, Math.min(100, Math.round(job.progress.percent)));
+  }
+
+  if (job.status === "completed" || job.status === "failed") {
+    return 100;
+  }
+
+  const runtimeSeconds = getRuntimeSeconds(job);
+
+  if (job.status === "queued") {
+    return Math.min(20, 6 + Math.floor(runtimeSeconds / 6));
+  }
+
+  const expectedSeconds = getExpectedDurationSeconds(job);
+  const ratio = runtimeSeconds / Math.max(1, expectedSeconds);
+  return Math.max(12, Math.min(95, Math.round(ratio * 100)));
+}
+
+function getExecutionSteps(job: JobSummary, progress: number): ExecutionStep[] {
+  if (job.progress?.steps && job.progress.steps.length > 0) {
+    return job.progress.steps.map((step) => ({
+      label: step.label,
+      state: step.state,
+    }));
+  }
+
+  if (job.status === "completed") {
+    return STEP_LABELS.map((label) => ({ label, state: "done" }));
+  }
+
+  if (job.status === "failed") {
+    const failedStepIndex = progress >= 80 ? 4 : progress >= 60 ? 3 : progress >= 35 ? 2 : 1;
+
+    return STEP_LABELS.map((label, index) => {
+      if (index < failedStepIndex) {
+        return { label, state: "done" };
+      }
+
+      if (index === failedStepIndex) {
+        return { label, state: "error" };
+      }
+
+      return { label, state: "pending" };
+    });
+  }
+
+  if (job.status === "queued") {
+    return STEP_LABELS.map((label, index) => ({
+      label,
+      state: index === 0 ? "active" : "pending",
+    }));
+  }
+
+  const activeStepIndex =
+    progress >= 90 ? 4 : progress >= 70 ? 3 : progress >= 45 ? 2 : progress >= 22 ? 1 : 0;
+
+  return STEP_LABELS.map((label, index) => {
+    if (index < activeStepIndex) {
+      return { label, state: "done" };
+    }
+
+    if (index === activeStepIndex) {
+      return { label, state: "active" };
+    }
+
+    return { label, state: "pending" };
+  });
+}
+
+function getExecutionStageLabel(job: JobSummary, steps: ExecutionStep[]): string {
+  if (job.progress?.stage) {
+    return job.progress.stage;
+  }
+
+  if (job.status === "completed") {
+    return "Completed";
+  }
+
+  if (job.status === "failed") {
+    return "Execution failed";
+  }
+
+  const activeIndex = steps.findIndex((step) => step.state === "active");
+  if (activeIndex !== -1) {
+    return `${steps[activeIndex].label} (${activeIndex + 1}/${steps.length})`;
+  }
+
+  return "Waiting in queue";
+}
+
+function buildJobExecutionDetails(job: JobSummary): JobExecutionDetails {
+  const progress = getJobProgress(job);
+  const runtimeSeconds = getRuntimeSeconds(job);
+  const expectedSeconds = getExpectedDurationSeconds(job);
+  const estimatedTotalSeconds =
+    job.status === "running" && progress > 0
+      ? Math.max(expectedSeconds, Math.round(runtimeSeconds / (progress / 100)))
+      : expectedSeconds;
+  const remainingSeconds = Math.max(0, estimatedTotalSeconds - runtimeSeconds);
+  const steps = getExecutionSteps(job, progress);
+  const isLongRunning =
+    job.status === "running" && runtimeSeconds > Math.round(expectedSeconds * 1.25);
+
+  return {
+    progress,
+    stageLabel: getExecutionStageLabel(job, steps),
+    elapsedLabel: formatDuration(runtimeSeconds),
+    etaLabel:
+      job.status === "completed" || job.status === "failed"
+        ? "00:00"
+        : formatDuration(remainingSeconds),
+    isLongRunning,
+    steps,
+  };
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const initialized = useRef(false);
@@ -361,27 +550,83 @@ export default function DashboardPage() {
                 No jobs yet. Submit one from the panel on the left.
               </p>
             ) : (
-              jobs.map((job, index) => (
-                <article
-                  key={job.id}
-                  className={`queue-item fade-up ${index < 3 ? `delay-${index + 1}` : ""}`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-medium text-slate-900">{job.id.slice(0, 8)}</h3>
-                    <span className={`status-pill ${job.status}`}>{job.status}</span>
-                  </div>
+              jobs.map((job, index) => {
+                const details = buildJobExecutionDetails(job);
+                const progress = details.progress;
 
-                  <p className="mt-2 text-sm text-slate-700">
-                    {job.jobType} on {job.datasetId}
-                  </p>
+                return (
+                  <article
+                    key={job.id}
+                    className={`queue-item fade-up ${index < 3 ? `delay-${index + 1}` : ""}`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-medium text-slate-900">{job.id.slice(0, 8)}</h3>
+                      <span className={`status-pill ${job.status}`}>{job.status}</span>
+                    </div>
 
-                  <p className="mt-1 text-xs text-slate-600">{job.message ?? "No message"}</p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      {job.jobType} on {job.datasetId}
+                    </p>
 
-                  {job.result ? (
-                    <pre className="result-panel text-xs">{JSON.stringify(job.result, null, 2)}</pre>
-                  ) : null}
-                </article>
-              ))
+                    <p className="mt-1 text-xs text-slate-600">{job.message ?? "No message"}</p>
+
+                    <div className="job-progress-meta mt-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[0.68rem] uppercase tracking-[0.1em] text-slate-500">Current stage</p>
+                        <p className="text-[0.75rem] font-semibold text-slate-700">{details.stageLabel}</p>
+                      </div>
+
+                      <div className="mt-1.5 grid grid-cols-3 gap-2 text-[0.72rem]">
+                        <div>
+                          <p className="uppercase tracking-[0.08em] text-slate-500">Complete</p>
+                          <p className="font-semibold text-slate-700">{progress}%</p>
+                        </div>
+                        <div>
+                          <p className="uppercase tracking-[0.08em] text-slate-500">Elapsed</p>
+                          <p className="font-semibold text-slate-700">{details.elapsedLabel}</p>
+                        </div>
+                        <div>
+                          <p className="uppercase tracking-[0.08em] text-slate-500">Remaining</p>
+                          <p className="font-semibold text-slate-700">{details.etaLabel}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className="job-progress-track"
+                      role="progressbar"
+                      aria-label={`Job ${job.id.slice(0, 8)} progress`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={progress}
+                    >
+                      <span
+                        className={`job-progress-fill ${job.status}`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+
+                    <ul className="job-step-list">
+                      {details.steps.map((step) => (
+                        <li key={`${job.id}-${step.label}`} className={`job-step ${step.state}`}>
+                          <span className="job-step-dot" aria-hidden="true" />
+                          <span className="job-step-label">{step.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {details.isLongRunning ? (
+                      <p className="job-runtime-hint">
+                        This job is taking longer than expected but is still running.
+                      </p>
+                    ) : null}
+
+                    {job.result ? (
+                      <pre className="result-panel text-xs">{JSON.stringify(job.result, null, 2)}</pre>
+                    ) : null}
+                  </article>
+                );
+              })
             )}
           </div>
         </article>

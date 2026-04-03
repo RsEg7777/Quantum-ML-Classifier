@@ -17,6 +17,26 @@ export const JobStatusSchema = z.enum([
   "failed",
 ]);
 
+export const ProgressStepStateSchema = z.enum([
+  "done",
+  "active",
+  "pending",
+  "error",
+]);
+
+export const JobProgressStepSchema = z.object({
+  label: z.string(),
+  state: ProgressStepStateSchema,
+});
+
+export const JobProgressSchema = z.object({
+  percent: z.number().int().min(0).max(100),
+  stage: z.string(),
+  message: z.string().optional(),
+  steps: z.array(JobProgressStepSchema).optional(),
+  updatedAt: z.string(),
+});
+
 export const CreateJobInputSchema = z.object({
   jobType: JobTypeSchema,
   datasetId: DatasetIdSchema,
@@ -33,6 +53,7 @@ export const JobSummarySchema = z.object({
   updatedAt: z.string(),
   message: z.string().optional(),
   result: z.record(z.string(), z.unknown()).optional(),
+  progress: JobProgressSchema.optional(),
 });
 
 export const DatasetSchema = z.object({
@@ -45,6 +66,9 @@ export const DatasetSchema = z.object({
 export type DatasetId = z.infer<typeof DatasetIdSchema>;
 export type JobType = z.infer<typeof JobTypeSchema>;
 export type JobStatus = z.infer<typeof JobStatusSchema>;
+export type ProgressStepState = z.infer<typeof ProgressStepStateSchema>;
+export type JobProgressStep = z.infer<typeof JobProgressStepSchema>;
+export type JobProgress = z.infer<typeof JobProgressSchema>;
 export type CreateJobInput = z.infer<typeof CreateJobInputSchema>;
 export type JobSummary = z.infer<typeof JobSummarySchema>;
 export type DatasetInfo = z.infer<typeof DatasetSchema>;

@@ -4,7 +4,7 @@ from io import StringIO
 import sys
 from itertools import combinations
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 from urllib.request import Request, urlopen
 
 import cirq
@@ -30,6 +30,57 @@ from src.quantum.encodings.angle_encoding import AngleEncoding  # noqa: E402
 
 
 GammaValue = Union[str, float]
+ProgressCallback = Callable[[int, str, Optional[str], Optional[list[dict[str, str]]]], None]
+
+PROGRESS_STEP_LABELS = [
+    "Validate request",
+    "Load and prepare data",
+    "Run model execution",
+    "Aggregate metrics",
+    "Finalize and persist",
+]
+
+
+def _build_progress_steps(
+    *,
+    active_index: Optional[int] = None,
+    error_index: Optional[int] = None,
+) -> list[dict[str, str]]:
+    steps: list[dict[str, str]] = []
+    for index, label in enumerate(PROGRESS_STEP_LABELS):
+        if error_index is not None:
+            if index < error_index:
+                state = "done"
+            elif index == error_index:
+                state = "error"
+            else:
+                state = "pending"
+        elif active_index is None:
+            state = "pending"
+        elif index < active_index:
+            state = "done"
+        elif index == active_index:
+            state = "active"
+        else:
+            state = "pending"
+
+        steps.append({"label": label, "state": state})
+
+    return steps
+
+
+def _emit_progress(
+    progress_callback: Optional[ProgressCallback],
+    percent: int,
+    stage: str,
+    message: Optional[str] = None,
+    steps: Optional[list[dict[str, str]]] = None,
+) -> None:
+    if progress_callback is None:
+        return
+
+    bounded_percent = max(0, min(100, int(percent)))
+    progress_callback(bounded_percent, stage, message, steps)
 
 
 def _to_int(config: Dict[str, Any], key: str, default: int) -> int:
@@ -246,6 +297,9 @@ def train_classical_svm(dataset: DatasetInfo, config: Dict[str, Any]) -> Tuple[f
 def train_quantum_enhanced_svm(
     dataset: DatasetInfo,
     config: Dict[str, Any],
+    progress_callback: Optional[ProgressCallback] = None,
+    progress_start: int = 58,
+    progress_end: int = 88,
 ) -> Tuple[float, float, Dict[str, Any]]:
     seed = _to_int(config, "seed", 42)
     requested_qubits = _to_int(config, "n_qubits", min(4, dataset.n_features))
@@ -286,7 +340,7 @@ def train_quantum_enhanced_svm(
     rng = np.random.RandomState(seed)
     best: Optional[Dict[str, Any]] = None
 
-    for _ in range(n_restarts):
+    for restart_idx in range(n_restarts):
         restart_seed = int(rng.randint(0, 1_000_000))
         params = vqc.get_initial_params(seed=restart_seed)
         ansatz_circuit = vqc.resolve(params)
@@ -332,6 +386,18 @@ def train_quantum_enhanced_svm(
                         "C": float(c_value),
                         "gamma": gamma_value,
                     }
+
+        restart_progress = progress_start + int(
+            ((restart_idx + 1) / max(1, n_restarts))
+            * max(1, progress_end - progress_start)
+        )
+        _emit_progress(
+            progress_callback,
+            restart_progress,
+            "Run model execution",
+            f"Quantum candidate search restart {restart_idx + 1}/{n_restarts}.",
+            _build_progress_steps(active_index=2),
+        )
 
     if best is None:
         raise RuntimeError("Quantum model search produced no candidate.")
@@ -399,11 +465,51 @@ def run_training(
     dataset_id: str,
     config: Dict[str, Any],
     csv_blob_url: Optional[str] = None,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> Dict[str, Any]:
+    _emit_progress(
+        progress_callback,
+        16,
+        "Load and prepare data",
+        "Loading and preprocessing dataset.",
+        _build_progress_steps(active_index=1),
+    )
+
     dataset = load_dataset(dataset_id, config, csv_blob_url)
+
+    _emit_progress(
+        progress_callback,
+        32,
+        "Load and prepare data",
+        "Dataset ready. Starting baseline model.",
+        _build_progress_steps(active_index=2),
+    )
+
+    _emit_progress(
+        progress_callback,
+        42,
+        "Run model execution",
+        "Training classical baseline.",
+        _build_progress_steps(active_index=2),
+    )
+
     classical_accuracy, classical_loss, classical_details = train_classical_svm(dataset, config)
 
     if not bool(config.get("enable_quantum", True)):
+        _emit_progress(
+            progress_callback,
+            78,
+            "Aggregate metrics",
+            "Collecting classical model metrics.",
+            _build_progress_steps(active_index=3),
+        )
+        _emit_progress(
+            progress_callback,
+            96,
+            "Finalize and persist",
+            "Finalizing classical-only training response.",
+            _build_progress_steps(active_index=4),
+        )
         return {
             "accuracy": round(classical_accuracy, 4),
             "loss": round(classical_loss, 4),
@@ -414,12 +520,37 @@ def run_training(
             },
         }
 
+    _emit_progress(
+        progress_callback,
+        56,
+        "Run model execution",
+        "Starting quantum candidate search.",
+        _build_progress_steps(active_index=2),
+    )
+
     try:
         quantum_accuracy, quantum_loss, quantum_details = train_quantum_enhanced_svm(
             dataset,
             config,
+            progress_callback=progress_callback,
+            progress_start=60,
+            progress_end=88,
         )
     except Exception as exc:
+        _emit_progress(
+            progress_callback,
+            88,
+            "Run model execution",
+            f"Quantum path failed. Falling back to classical baseline: {exc}",
+            _build_progress_steps(error_index=2),
+        )
+        _emit_progress(
+            progress_callback,
+            96,
+            "Finalize and persist",
+            "Finalizing fallback response.",
+            _build_progress_steps(active_index=4),
+        )
         return {
             "accuracy": round(classical_accuracy, 4),
             "loss": round(classical_loss, 4),
@@ -447,6 +578,14 @@ def run_training(
             "returned stronger classical baseline."
         )
 
+    _emit_progress(
+        progress_callback,
+        92,
+        "Aggregate metrics",
+        "Selecting best model and compiling metrics.",
+        _build_progress_steps(active_index=3),
+    )
+
     details = {
         **selected_details,
         "selected_model": selected_model,
@@ -461,6 +600,14 @@ def run_training(
         },
     }
 
+    _emit_progress(
+        progress_callback,
+        98,
+        "Finalize and persist",
+        "Finalizing training response payload.",
+        _build_progress_steps(active_index=4),
+    )
+
     return {
         "accuracy": round(selected_accuracy, 4),
         "loss": round(selected_loss, 4),
@@ -473,8 +620,26 @@ def run_inference(
     dataset_id: str,
     config: Dict[str, Any],
     csv_blob_url: Optional[str] = None,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> Dict[str, Any]:
+    _emit_progress(
+        progress_callback,
+        18,
+        "Load and prepare data",
+        "Loading and preprocessing dataset.",
+        _build_progress_steps(active_index=1),
+    )
+
     dataset = load_dataset(dataset_id, config, csv_blob_url)
+
+    _emit_progress(
+        progress_callback,
+        44,
+        "Run model execution",
+        "Running inference baseline model.",
+        _build_progress_steps(active_index=2),
+    )
+
     accuracy, loss, details = train_classical_svm(dataset, config)
 
     preview_count = min(10, len(dataset.X_test))
@@ -488,8 +653,24 @@ def run_inference(
     model.fit(dataset.X_train, dataset.y_train)
     preview_predictions = model.predict(dataset.X_test[:preview_count]).tolist()
 
+    _emit_progress(
+        progress_callback,
+        80,
+        "Aggregate metrics",
+        "Computing prediction preview and metrics.",
+        _build_progress_steps(active_index=3),
+    )
+
     details["preview_predictions"] = preview_predictions
     details["preview_count"] = preview_count
+
+    _emit_progress(
+        progress_callback,
+        96,
+        "Finalize and persist",
+        "Finalizing inference response payload.",
+        _build_progress_steps(active_index=4),
+    )
 
     return {
         "accuracy": round(accuracy, 4),
@@ -503,11 +684,20 @@ def run_experiment(
     dataset_id: str,
     config: Dict[str, Any],
     csv_blob_url: Optional[str] = None,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> Dict[str, Any]:
+    _emit_progress(
+        progress_callback,
+        18,
+        "Load and prepare data",
+        "Preparing experiment sweep.",
+        _build_progress_steps(active_index=1),
+    )
+
     feature_grid = config.get("feature_grid", [2, 4, 8])
     results = []
 
-    for n_features in feature_grid:
+    for index, n_features in enumerate(feature_grid):
         local_config = {**config, "n_features": int(n_features)}
         dataset = load_dataset(dataset_id, local_config, csv_blob_url)
         accuracy, loss, _ = train_classical_svm(dataset, local_config)
@@ -519,7 +709,34 @@ def run_experiment(
             }
         )
 
+        sweep_progress = 36 + int(
+            ((index + 1) / max(1, len(feature_grid))) * 48
+        )
+        _emit_progress(
+            progress_callback,
+            sweep_progress,
+            "Run model execution",
+            f"Experiment sweep iteration {index + 1}/{len(feature_grid)}.",
+            _build_progress_steps(active_index=2),
+        )
+
     best = max(results, key=lambda item: item["accuracy"])
+
+    _emit_progress(
+        progress_callback,
+        90,
+        "Aggregate metrics",
+        "Selecting best experiment result.",
+        _build_progress_steps(active_index=3),
+    )
+
+    _emit_progress(
+        progress_callback,
+        97,
+        "Finalize and persist",
+        "Finalizing experiment response payload.",
+        _build_progress_steps(active_index=4),
+    )
 
     return {
         "accuracy": best["accuracy"],

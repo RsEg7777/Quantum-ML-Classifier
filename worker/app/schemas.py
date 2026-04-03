@@ -25,6 +25,9 @@ class CreateJobInput(BaseModel):
     dataset_id: DatasetId = Field(alias="datasetId")
     config: Dict[str, Any] = Field(default_factory=dict)
     csv_blob_url: Optional[str] = Field(default=None, alias="csvBlobUrl")
+    job_id: Optional[str] = Field(default=None, alias="jobId")
+    progress_callback_url: Optional[str] = Field(default=None, alias="progressCallbackUrl")
+    progress_callback_token: Optional[str] = Field(default=None, alias="progressCallbackToken")
 
     model_config = {
         "populate_by_name": True,
