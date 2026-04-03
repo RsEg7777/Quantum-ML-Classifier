@@ -36,9 +36,11 @@ type JobExecutionDetails = {
   stageLabel: string;
   elapsedLabel: string;
   etaLabel: string;
-  isLongRunning: boolean;
+  runtimeHint?: string;
   steps: ExecutionStep[];
 };
+
+type ThemeMode = "white" | "midnight-teal-pro";
 
 const STEP_LABELS = [
   "Validate request",
@@ -197,8 +199,23 @@ function buildJobExecutionDetails(job: JobSummary): JobExecutionDetails {
       : expectedSeconds;
   const remainingSeconds = Math.max(0, estimatedTotalSeconds - runtimeSeconds);
   const steps = getExecutionSteps(job, progress);
+  const lastProgressUpdateAt = Date.parse(job.progress?.updatedAt ?? job.updatedAt);
+  const secondsSinceLastProgress = Number.isNaN(lastProgressUpdateAt)
+    ? 0
+    : Math.max(0, Math.round((Date.now() - lastProgressUpdateAt) / 1000));
   const isLongRunning =
     job.status === "running" && runtimeSeconds > Math.round(expectedSeconds * 1.25);
+  const isStaleRunning = job.status === "running" && secondsSinceLastProgress > 35;
+
+  let runtimeHint: string | undefined;
+  if (isStaleRunning) {
+    runtimeHint =
+      `No progress update for ${formatDuration(secondsSinceLastProgress)}. ` +
+      "Try Refresh to verify worker connectivity.";
+  } else if (isLongRunning) {
+    runtimeHint =
+      `Still processing. Runtime exceeded the typical ${formatDuration(expectedSeconds)} for this job type.`;
+  }
 
   return {
     progress,
@@ -208,7 +225,7 @@ function buildJobExecutionDetails(job: JobSummary): JobExecutionDetails {
       job.status === "completed" || job.status === "failed"
         ? "00:00"
         : formatDuration(remainingSeconds),
-    isLongRunning,
+    runtimeHint,
     steps,
   };
 }
@@ -222,6 +239,9 @@ export default function DashboardPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [csvBlobUrl, setCsvBlobUrl] = useState<string | null>(null);
   const [csvFilename, setCsvFilename] = useState<string | null>(null);
+  const [themeMode, setThemeMode] = useState<ThemeMode>("white");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshLabel, setLastRefreshLabel] = useState<string>("");
   const [workerReachable, setWorkerReachable] = useState<boolean | null>(null);
   const [workerStatus, setWorkerStatus] = useState<string>("unknown");
   const [workerEndpoint, setWorkerEndpoint] = useState<string>("-");
@@ -242,8 +262,21 @@ export default function DashboardPage() {
     return { total, running, completed, failed };
   }, [jobs]);
 
-  async function loadDatasets() {
-    const response = await fetch("/api/datasets", { cache: "no-store" });
+  function applyTheme(nextTheme: ThemeMode) {
+    setThemeMode(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    localStorage.setItem("qml-theme", nextTheme);
+  }
+
+  function toggleTheme() {
+    applyTheme(themeMode === "white" ? "midnight-teal-pro" : "white");
+  }
+
+  async function loadDatasets(forceNetwork = false) {
+    const response = await fetch(
+      forceNetwork ? `/api/datasets?refresh=${Date.now()}` : "/api/datasets",
+      { cache: "no-store" }
+    );
     if (!response.ok) {
       setError("Failed to load dataset catalog.");
       return;
@@ -253,10 +286,13 @@ export default function DashboardPage() {
     setDatasets(payload.datasets);
   }
 
-  async function loadJobs() {
-    const response = await fetch("/api/jobs", { cache: "no-store" });
+  async function loadJobs(forceNetwork = false) {
+    const response = await fetch(
+      forceNetwork ? `/api/jobs?refresh=${Date.now()}` : "/api/jobs",
+      { cache: "no-store" }
+    );
     if (!response.ok) {
-      setError("Failed to load jobs.");
+      setError(`Failed to load jobs (${response.status}).`);
       return;
     }
 
@@ -264,8 +300,11 @@ export default function DashboardPage() {
     setJobs(payload.jobs);
   }
 
-  async function loadHealth() {
-    const response = await fetch("/api/health", { cache: "no-store" });
+  async function loadHealth(forceNetwork = false) {
+    const response = await fetch(
+      forceNetwork ? `/api/health?refresh=${Date.now()}` : "/api/health",
+      { cache: "no-store" }
+    );
     if (!response.ok) {
       setWorkerReachable(false);
       setWorkerStatus(`health_error_${response.status}`);
@@ -277,6 +316,17 @@ export default function DashboardPage() {
     setWorkerStatus(payload.worker?.status ?? "unknown");
     setWorkerEndpoint(payload.worker?.url ?? "-");
     setWorkerMisconfigured(Boolean(payload.config?.usingLocalWorkerInProd));
+  }
+
+  async function refreshQueueNow() {
+    setIsRefreshing(true);
+
+    try {
+      await Promise.all([loadJobs(true), loadHealth(true)]);
+      setLastRefreshLabel(new Date().toLocaleTimeString());
+    } finally {
+      setIsRefreshing(false);
+    }
   }
 
   async function submitJob(event: FormEvent<HTMLFormElement>) {
@@ -354,6 +404,14 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    const storedTheme = localStorage.getItem("qml-theme");
+    const nextTheme: ThemeMode = storedTheme === "midnight-teal-pro" ? "midnight-teal-pro" : "white";
+    setThemeMode(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    localStorage.setItem("qml-theme", nextTheme);
+  }, []);
+
+  useEffect(() => {
     // One-time initialization on mount
     if (!initialized.current) {
       initialized.current = true;
@@ -390,9 +448,14 @@ export default function DashboardPage() {
               <p className="kicker-badge">JOB ORCHESTRATION</p>
               <h1 className="mt-3 text-3xl font-semibold text-slate-900">Job Builder</h1>
             </div>
-            <button className="btn-ghost" type="button" onClick={signOut}>
-              Sign out
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button className="btn-ghost" type="button" onClick={toggleTheme}>
+                Theme: {themeMode === "white" ? "White" : "Midnight Teal Pro"}
+              </button>
+              <button className="btn-ghost" type="button" onClick={signOut}>
+                Sign out
+              </button>
+            </div>
           </div>
 
           <p className="mt-3 text-sm leading-relaxed text-slate-700">
@@ -512,8 +575,8 @@ export default function DashboardPage() {
                 Polling automatically while jobs are running
               </p>
             </div>
-            <button className="btn-ghost" type="button" onClick={() => void loadJobs()}>
-              Refresh
+            <button className="btn-ghost" type="button" onClick={() => void refreshQueueNow()} disabled={isRefreshing}>
+              {isRefreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
 
@@ -538,6 +601,9 @@ export default function DashboardPage() {
           </div>
 
           <p className="mt-2 text-xs text-slate-500">Endpoint: {workerEndpoint}</p>
+          {lastRefreshLabel ? (
+            <p className="mt-1 text-xs text-slate-500">Last manual refresh: {lastRefreshLabel}</p>
+          ) : null}
           {workerMisconfigured ? (
             <p className="mt-1 text-xs font-semibold text-amber-700">
               Warning: production is pointing to localhost worker URL.
@@ -615,10 +681,8 @@ export default function DashboardPage() {
                       ))}
                     </ul>
 
-                    {details.isLongRunning ? (
-                      <p className="job-runtime-hint">
-                        This job is taking longer than expected but is still running.
-                      </p>
+                    {details.runtimeHint ? (
+                      <p className="job-runtime-hint">{details.runtimeHint}</p>
                     ) : null}
 
                     {job.result ? (
