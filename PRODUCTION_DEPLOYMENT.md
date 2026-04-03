@@ -85,6 +85,8 @@ APP_BASE_URL=<frontend public URL>
 1. **Connect to GitHub**
    - Push code to main branch repository
    - Connect Vercel project to repo
+   - In Vercel Project Settings -> Build and Deployment -> Root Directory, set: `frontend`
+   - Do not use legacy root-level `builds`/`routes` overrides for this Next.js app
 
 2. **Set Environment Variables**
    - In Vercel project settings: add AUTH_*, BLOB_*, WORKER_*, POSTGRES_* vars

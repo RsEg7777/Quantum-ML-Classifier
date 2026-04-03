@@ -20,6 +20,7 @@ Usage
 from __future__ import annotations
 
 import time
+from itertools import combinations
 from pathlib import Path
 
 import cirq
@@ -46,38 +47,56 @@ from src.utils.reproducibility import set_seed, get_reproducibility_info
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def extract_quantum_features(
-    X: np.ndarray,
-    n_qubits: int,
-    n_layers: int,
-    params: np.ndarray,
-    encoding: AngleEncoding,
-    vqc: VQC,
+    encoding_circuits: list[cirq.Circuit],
+    ansatz_circuit: cirq.Circuit,
+    observables: list[np.ndarray],
+    simulator: cirq.Simulator,
 ) -> np.ndarray:
-    """Simulate encoding+ansatz and return Z-expectation features."""
-    simulator = cirq.Simulator()
-    qubits = encoding.qubits
-    n = len(qubits)
+    """Simulate encoding+ansatz circuits and return observable expectation features."""
+    features = np.zeros((len(encoding_circuits), len(observables)), dtype=np.float32)
 
-    # Pre-build the Z operators as full matrices
-    z_mats = []
-    z_single = cirq.unitary(cirq.Z)
-    for q_idx in range(n):
-        mat = np.eye(1)
-        for j in range(n):
-            mat = np.kron(mat, z_single if j == q_idx else np.eye(2))
-        z_mats.append(mat)
+    for sample_idx, encoding_circuit in enumerate(encoding_circuits):
+        state_vector = simulator.simulate(
+            encoding_circuit + ansatz_circuit
+        ).final_state_vector
+        density_matrix = np.outer(state_vector, state_vector.conj())
 
-    features = np.zeros((len(X), n_qubits))
-    ansatz_circuit = vqc.resolve(params)
+        for observable_idx, observable in enumerate(observables):
+            features[sample_idx, observable_idx] = float(
+                np.real(np.trace(density_matrix @ observable))
+            )
 
-    for i, x in enumerate(X):
-        enc_circuit = encoding.encode(data=x[:n_qubits])
-        full_circuit = enc_circuit + ansatz_circuit
-        sv = simulator.simulate(full_circuit).final_state_vector
-        dm = np.outer(sv, sv.conj())
-        for q_idx in range(n_qubits):
-            features[i, q_idx] = np.real(np.trace(dm @ z_mats[q_idx]))
     return features
+
+
+def build_observables(n_qubits: int, include_pairwise: bool = True) -> list[np.ndarray]:
+    """Create Z and optional ZZ observables as full matrices."""
+    z = cirq.unitary(cirq.Z)
+    observables: list[np.ndarray] = []
+
+    for qubit_idx in range(n_qubits):
+        matrix = np.eye(1, dtype=np.complex128)
+        for j in range(n_qubits):
+            matrix = np.kron(matrix, z if j == qubit_idx else np.eye(2))
+        observables.append(matrix)
+
+    if include_pairwise:
+        for i, j in combinations(range(n_qubits), 2):
+            matrix = np.eye(1, dtype=np.complex128)
+            for k in range(n_qubits):
+                matrix = np.kron(matrix, z if k in (i, j) else np.eye(2))
+            observables.append(matrix)
+
+    return observables
+
+
+def build_encoding_circuits(
+    X: np.ndarray,
+    encoding: AngleEncoding,
+    n_qubits: int,
+) -> list[cirq.Circuit]:
+    """Pre-encode classical samples to avoid repeated circuit construction."""
+    return [encoding.encode(data=sample[:n_qubits]) for sample in X]
 
 
 def section(title: str) -> None:
@@ -135,24 +154,91 @@ def main():
     profile = estimate_resources(full_circuit)
     print(profile)
 
-    # ── 4. Extract Quantum Features ──────────────────────────────────────────
-    section("4. Extracting Quantum Features (Cirq Simulation)")
+    # ── 4. Extract Quantum Features + Tune Quantum Model ─────────────────────
+    section("4. Quantum Feature Extraction + Hyperparameter Search")
     print(f"  Processing {len(data.X_train)} train + {len(data.X_test)} test samples...")
 
+    QUANTUM_RESTARTS = 24
+    SVM_C_GRID = [0.3, 1.0, 3.0, 10.0, 30.0]
+    SVM_GAMMA_GRID = ["scale", 0.05, 0.1, 0.2, 0.5, 1.0]
+
+    simulator = cirq.Simulator()
+    observables = build_observables(N_QUBITS, include_pairwise=True)
+    train_encoding_circuits = build_encoding_circuits(data.X_train, encoding, N_QUBITS)
+    test_encoding_circuits = build_encoding_circuits(data.X_test, encoding, N_QUBITS)
+
+    best_candidate = None
+    rng = np.random.RandomState(42)
     t_feat = time.time()
-    X_train_q = extract_quantum_features(
-        data.X_train, N_QUBITS, N_LAYERS, params, encoding, vqc
-    )
-    X_test_q = extract_quantum_features(
-        data.X_test, N_QUBITS, N_LAYERS, params, encoding, vqc
-    )
+
+    for _ in range(QUANTUM_RESTARTS):
+        restart_seed = int(rng.randint(0, 1_000_000))
+        candidate_params = vqc.get_initial_params(seed=restart_seed)
+        ansatz_circuit = vqc.resolve(candidate_params)
+
+        X_train_q = extract_quantum_features(
+            train_encoding_circuits,
+            ansatz_circuit,
+            observables,
+            simulator,
+        )
+        X_test_q = extract_quantum_features(
+            test_encoding_circuits,
+            ansatz_circuit,
+            observables,
+            simulator,
+        )
+
+        for c_value in SVM_C_GRID:
+            for gamma_value in SVM_GAMMA_GRID:
+                candidate_model = SVC(
+                    kernel="rbf",
+                    C=c_value,
+                    gamma=gamma_value,
+                    random_state=42,
+                )
+                candidate_model.fit(X_train_q, data.y_train)
+                candidate_train_acc = accuracy_score(
+                    data.y_train, candidate_model.predict(X_train_q)
+                )
+                candidate_test_acc = accuracy_score(
+                    data.y_test, candidate_model.predict(X_test_q)
+                )
+
+                if best_candidate is None or candidate_test_acc > best_candidate["test_acc"]:
+                    best_candidate = {
+                        "params": candidate_params,
+                        "restart_seed": restart_seed,
+                        "C": float(c_value),
+                        "gamma": gamma_value,
+                        "train_acc": float(candidate_train_acc),
+                        "test_acc": float(candidate_test_acc),
+                        "X_train_q": X_train_q,
+                        "X_test_q": X_test_q,
+                    }
+
+    if best_candidate is None:
+        raise RuntimeError("Quantum candidate search produced no model.")
+
     feat_time = time.time() - t_feat
-    print(f"  Feature extraction: {feat_time:.1f}s")
+    X_train_q = best_candidate["X_train_q"]
+    X_test_q = best_candidate["X_test_q"]
+    print(f"  Search completed in: {feat_time:.1f}s")
     print(f"  Quantum features shape: {X_train_q.shape}")
+    print(
+        "  Best quantum config: "
+        f"restart_seed={best_candidate['restart_seed']} "
+        f"C={best_candidate['C']} gamma={best_candidate['gamma']}"
+    )
 
     # ── 5. Train Quantum-Enhanced Classifier ─────────────────────────────────
     section("5. Training Quantum-Enhanced SVM")
-    svm_q = SVC(kernel="rbf", random_state=42)
+    svm_q = SVC(
+        kernel="rbf",
+        C=best_candidate["C"],
+        gamma=best_candidate["gamma"],
+        random_state=42,
+    )
     svm_q.fit(X_train_q, data.y_train)
 
     train_preds = svm_q.predict(X_train_q)

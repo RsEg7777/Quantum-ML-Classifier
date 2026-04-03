@@ -24,11 +24,26 @@ class _MockResponse:
 
 
 def test_run_training_builtin_dataset():
-    result = pipeline.run_training("iris", {"seed": 42, "n_features": 4})
+    result = pipeline.run_training(
+        "iris",
+        {
+            "seed": 42,
+            "n_features": 4,
+            "n_qubits": 4,
+            "n_layers": 2,
+            "quantum_restarts": 2,
+        },
+    )
 
     assert 0.0 <= result["accuracy"] <= 1.0
     assert result["loss"] >= 0.0
     assert result["details"]["dataset"].startswith("iris")
+    assert result["details"]["selected_model"] in {
+        "quantum_enhanced",
+        "classical_rbf",
+    }
+    assert "classical_baseline" in result["details"]
+    assert "quantum_candidate" in result["details"]
 
 
 def test_load_dataset_csv_upload(monkeypatch):

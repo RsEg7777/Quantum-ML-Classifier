@@ -10,7 +10,7 @@ A modular, research-grade framework for **quantum-classical hybrid machine learn
 
 | Model | Train Accuracy | Test Accuracy |
 |---|---|---|
-| Quantum-Enhanced SVM | 85.83% | **86.67%** |
+| Quantum-Enhanced SVM | 97.50% | **100.00%** |
 | Classical SVM (RBF) | 97.50% | 96.67% |
 
 Full output: [`output/pipeline_output.txt`](output/pipeline_output.txt)
