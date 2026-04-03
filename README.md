@@ -1,270 +1,192 @@
-# Quantum-Classical Hybrid ML Classifier
+# Quantum ML Classifier
 
-A modular, research-grade framework for **quantum-classical hybrid machine learning** built on [Google Cirq](https://quantumai.google/cirq) and [TensorFlow Quantum](https://www.tensorflow.org/quantum). It provides a complete pipeline — from quantum data encoding through variational circuit training to classical post-processing — designed for experimentation, benchmarking, and education.
+A monorepo for quantum-classical ML research and production operations.
 
-> **Status:** 40/40 tests passing · end-to-end pipeline verified · runs in ~4 s on CPU
+This repository now has two connected tracks:
+- Research and experimentation: modular Python code for quantum encodings, variational circuits, hybrid models, noise analysis, and benchmark experiments.
+- Production app stack: a Next.js control center that submits jobs to a FastAPI worker, with auth, CSV upload, queue integration, and storage fallbacks.
 
----
+## Current Project State (April 2026)
 
-## Key Results (Iris Dataset)
+- Research pipeline is operational end-to-end via [main.py](main.py).
+- Latest tracked Iris benchmark is documented in [output/pipeline_output.txt](output/pipeline_output.txt):
+  - Quantum-enhanced SVM test accuracy: 1.0000
+  - Classical SVM (RBF) test accuracy: 0.9667
+- Python unit suite results are documented in [output/test_results.txt](output/test_results.txt) (40 passing tests in the latest recorded run).
+- Frontend app is production-oriented with protected APIs, signed-cookie auth, optional Google OAuth, CSV upload, and job lifecycle UI.
+- Worker service supports training, inference, and experiment jobs, including quantum-enhanced training with classical fallback.
+- CI quality gates are defined in [ci_cd/.github/workflows/quality-gates.yml](ci_cd/.github/workflows/quality-gates.yml) for frontend lint/tests/build/E2E and worker checks.
 
-| Model | Train Accuracy | Test Accuracy |
+## Monorepo Components
+
+| Component | Path | Purpose |
 |---|---|---|
-| Quantum-Enhanced SVM | 97.50% | **100.00%** |
-| Classical SVM (RBF) | 97.50% | 96.67% |
+| Research core | [src/](src/) | Quantum circuits, encodings, kernels, hybrid training, analysis, visualization |
+| Experiment framework | [experiments/](experiments/) + [configs/experiments/](configs/experiments/) | Reproducible YAML-driven experiment suites |
+| Demo entrypoint | [main.py](main.py) | End-to-end quantum feature extraction + classifier benchmark |
+| Frontend control center | [frontend/](frontend/) | Next.js 16 app for login, job creation, queue monitoring, health checks |
+| Worker API | [worker/](worker/) | FastAPI worker executing training/inference/experiment jobs |
+| Lightweight deploy worker | [worker_service_deploy/](worker_service_deploy/) | Minimal FastAPI variant for constrained deployment targets |
+| Deployment docs | [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md), [VERCEL_ENV.md](VERCEL_ENV.md) | Vercel + worker deployment checklist and env templates |
 
-Full output: [`output/pipeline_output.txt`](output/pipeline_output.txt)
+## Repository Layout (Key Paths)
 
----
-
-## Features
-
-### Quantum Components
-- **5 Encoding Schemes** — Angle, Amplitude, IQP, Basis, Hamiltonian
-- **6 Circuit Architectures** — VQC (hardware-efficient & strongly-entangling ansätze), QCNN, QAOA, Tensor Networks (MPS/TTN), QRNN, QGNN
-- **4 Entanglement Topologies** — Linear, Circular, Full, Star
-- **Parametric & Standard Gates** — Rx, Ry, Rz, CNOT, CZ, SWAP, and more
-- **Measurements** — Pauli (X/Y/Z) expectation values, projective measurements
-- **Quantum Kernels** — Fidelity-based kernel with scikit-learn estimator compatibility
-
-### Classical Components
-- **Baseline Models** — SVM, Gaussian Processes, XGBoost/LightGBM ensembles, MLP
-- **Hybrid Pipeline** — Quantum feature extraction → classical classifier
-
-### Noise & Error Mitigation
-- **Noise Channels** — Depolarizing, amplitude damping, phase damping, readout error
-- **Mitigation** — Zero-Noise Extrapolation (ZNE), measurement error mitigation
-
-### Optimization
-- **Quantum-Aware Optimizers** — SPSA, Rotosolve
-- **Training Loop** — Configurable training with logging and checkpointing
-
-### Analysis & Visualization
-- **Circuit Analysis** — Expressibility, entangling capability, resource estimation, gradient analysis, loss landscape
-- **Visualization** — Training curves, circuit diagrams
-
-### Experiment Framework
-- **YAML-Driven Experiments** — Define and run reproducible experiment suites
-- **Built-in Experiments** — Depth scaling, encoding comparison
-
----
-
-## Project Structure
-
+```text
+Quantum ML Classifier/
+|- main.py
+|- src/
+|- experiments/
+|- configs/
+|- tests/
+|- output/
+|- frontend/
+|  |- src/app/
+|  |- __tests__/
+|  |- e2e/
+|- worker/
+|  |- app/
+|- worker_service_deploy/
+|- ci_cd/.github/workflows/quality-gates.yml
 ```
-Quantum-ML-Classifier/
-├── main.py                          # End-to-end demo pipeline
-├── pyproject.toml                   # Project metadata & dependencies
-│
-├── src/
-│   ├── quantum/
-│   │   ├── encodings/               # Angle, Amplitude, IQP, Basis, Hamiltonian
-│   │   ├── circuits/                # VQC, QCNN, QAOA, Tensor Networks, QRNN, QGNN
-│   │   ├── gates/                   # Standard & parametric gate libraries
-│   │   ├── measurements/            # Pauli & projective measurements
-│   │   ├── kernels/                 # Fidelity-based quantum kernel (sklearn API)
-│   │   └── entanglement/            # Entanglement topology strategies
-│   │
-│   ├── classical/
-│   │   ├── baselines/               # SVM, Gaussian Processes, Ensembles
-│   │   └── networks/                # MLP
-│   │
-│   ├── hybrid/
-│   │   ├── models/                  # HybridModel, QuantumLayer
-│   │   ├── optimization/            # SPSA, Rotosolve
-│   │   └── training/                # Training loop
-│   │
-│   ├── noise/
-│   │   ├── models/                  # Depolarizing, amplitude/phase damping, readout
-│   │   └── mitigation/              # ZNE, measurement error mitigation
-│   │
-│   ├── analysis/
-│   │   ├── circuit/                 # Expressibility, resource estimation
-│   │   └── optimization/            # Gradient analysis, loss landscape
-│   │
-│   ├── visualization/
-│   │   ├── circuits/                # Circuit drawer
-│   │   └── ml/                      # Training curves
-│   │
-│   ├── data/loaders/                # Iris, Breast Cancer dataset loaders
-│   └── utils/                       # Config, logging, reproducibility
-│
-├── experiments/
-│   ├── run_all_experiments.py        # Experiment runner framework
-│   └── suite_1_architecture/         # Depth scaling experiment
-│
-├── configs/
-│   ├── experiments/                  # Depth scaling & encoding comparison configs
-│   └── models/                       # VQC config
-│
-├── tests/unit/                       # 40 unit tests (circuits, encodings)
-├── output/                           # Documented pipeline & test outputs
-├── docs/                             # Documentation
-├── notebooks/                        # Jupyter notebooks
-├── scripts/                          # Utility scripts
-├── docker/                           # Docker configuration
-└── ci_cd/                            # CI/CD configuration
-```
-
----
 
 ## Quick Start
 
-### Prerequisites
+### 1. Research Demo (Python)
 
-- **Python 3.9–3.11** (TensorFlow Quantum requires < 3.12)
-- **Linux or WSL2** (TFQ is Linux-only; Windows users use WSL2)
+1. Create and activate a virtual environment.
+2. Install dependencies.
+3. Run the demo pipeline.
 
-### Installation
+PowerShell example:
 
-```bash
-# Clone the repository
-git clone https://github.com/RsEg7777/Quantum-ML-Classifier.git
-cd Quantum-ML-Classifier
-
-# Create virtual environment (Python 3.10 recommended)
-python3.10 -m venv venv
-source venv/bin/activate
-
-# Install core dependencies
-pip install cirq==1.3.0 tensorflow==2.15.0 tensorflow-quantum==0.7.2
-pip install scikit-learn numpy scipy sympy matplotlib seaborn pyyaml tqdm
-
-# Install test dependencies
-pip install pytest
-```
-
-### Run the Demo
-
-```bash
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 python main.py
 ```
 
-This executes the full pipeline on the Iris dataset:
-1. Loads and preprocesses data (4 features, 3 classes)
-2. Builds a 4-qubit VQC with angle encoding + hardware-efficient ansatz (3 layers, 24 parameters)
-3. Extracts quantum features via Cirq statevector simulation
-4. Trains a quantum-enhanced SVM classifier
-5. Compares against a classical SVM baseline
-6. Analyzes noise impact and entanglement topologies
+The demo executes the full pipeline from dataset loading through quantum feature extraction and baseline comparison.
 
-### Run Tests
+Notes:
+- Project metadata targets Python >=3.9,<3.12 (see [pyproject.toml](pyproject.toml)).
+- Full TensorFlow Quantum environments are typically easiest on Linux/WSL2.
 
-```bash
-python -m pytest tests/ -v
+### 2. Full Local App (Frontend + Worker)
+
+Run worker and frontend in separate terminals.
+
+Worker terminal (from repository root):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r worker/requirements.txt
+uvicorn worker.app.main:app --reload --port 8000
 ```
 
-Expected: **40/40 passed** — see [`output/test_results.txt`](output/test_results.txt)
+Frontend terminal:
 
----
-
-## How It Works
-
-### Pipeline
-
-```
-Raw Data → Encoding → |ψ(x)⟩ → Variational Ansatz → U(θ)|ψ(x)⟩ → Measurement → Features → Classical ML → Prediction
+```powershell
+cd frontend
+npm install
+copy .env.example .env.local
+npm run dev
 ```
 
-1. **Data Encoding** — Classical features are mapped to quantum states via angle encoding (Ry rotations proportional to feature values)
-2. **Variational Circuit** — A parameterized ansatz transforms the encoded state; the hardware-efficient ansatz alternates Ry/Rz rotation layers with CNOT entangling layers
-3. **Measurement** — Pauli-Z expectation values are extracted per qubit, producing a quantum feature vector
-4. **Classical Post-Processing** — An SVM (or other classifier) operates on the quantum features
+Open:
+- Frontend: http://localhost:3000
+- Frontend health endpoint: http://localhost:3000/api/health
+- Worker health endpoint: http://localhost:8000/health
 
-### Sample Circuit (4 qubits, 3 layers)
+Minimum local env values from [frontend/.env.example](frontend/.env.example):
+- AUTH_SECRET
+- AUTH_USER_EMAIL
+- AUTH_USER_PASSWORD
+- WORKER_WEBHOOK_SECRET
+- WORKER_BASE_URL (usually http://localhost:8000 for local dev)
 
-```
-q0: ──Ry(x₀)──Ry(θ₀)──Rz(θ₁)──@────────────────────────────────── ···
-                                │
-q1: ──Ry(x₁)──Ry(θ₂)──Rz(θ₃)──X──@─────────────────────────────── ···
-                                    │
-q2: ──Ry(x₂)──Ry(θ₄)──Rz(θ₅)─────X──@──────────────────────────── ···
-                                       │
-q3: ──Ry(x₃)──Ry(θ₆)──Rz(θ₇)─────────X──────────────────────────── ···
-      ╰─encoding─╯     ╰──── variational ansatz (× 3 layers) ────╯
-```
+## API Surface (Current)
 
-### Entanglement Topologies
+Frontend API routes under [frontend/src/app/api/](frontend/src/app/api/):
+- GET /api/health
+- GET /api/datasets
+- GET /api/jobs
+- POST /api/jobs
+- GET /api/jobs/:id
+- POST /api/uploads
+- GET /api/uploads/:id?token=...
+- Auth routes under /api/auth/*
+- Internal dispatch route: POST /api/internal/jobs/dispatch
 
-- **Linear** — nearest-neighbor: (0,1), (1,2), (2,3)
-- **Circular** — linear + wrap-around: adds (3,0)
-- **Full** — all-to-all: all C(n,2) pairs
-- **Star** — hub-spoke from qubit 0: (0,1), (0,2), (0,3)
+Worker routes in [worker/app/main.py](worker/app/main.py):
+- GET /health
+- POST /jobs/run
+- WS /ws/jobs
 
-Topology impact on circuit resources (4 qubits, 3 layers):
+Supported job types:
+- training
+- inference
+- experiment
 
-| Topology | Depth | Gates | 2-Qubit Gates |
-|---|---|---|---|
-| Linear | 13 | 33 | 9 |
-| Circular | 18 | 36 | 12 |
-| Full | 19 | 42 | 18 |
-| Star | 15 | 33 | 9 |
+Supported dataset IDs:
+- iris
+- breast_cancer
+- wine
+- mnist_binary
+- csv_upload
 
----
+## Experiments
 
-## Configuration
+Experiment configs live in [configs/experiments/](configs/experiments/).
 
-Experiments are configured via YAML files in `configs/`:
+Run all configured experiments:
 
-```yaml
-# configs/experiments/depth_scaling.yaml
-experiment:
-  name: depth_scaling
-  dataset: iris
-  n_qubits: 4
-  depths: [1, 2, 3, 4, 5, 6]
-  encoding: angle
-  ansatz: hardware_efficient
-  entanglement: linear
-```
-
-Run experiments:
-
-```bash
+```powershell
 python -m experiments.run_all_experiments
 ```
 
----
+## Testing and Quality Gates
 
-## Tech Stack
+Python test suite:
 
-| Component | Library | Version |
-|---|---|---|
-| Quantum Simulation | Cirq | 1.3.0 |
-| Quantum ML | TensorFlow Quantum | 0.7.2 |
-| Deep Learning | TensorFlow | 2.15.0 |
-| Classical ML | scikit-learn | ≥ 1.3 |
-| Symbolic Math | SymPy | ≥ 1.12 |
-| Numerical | NumPy | ≥ 1.24 |
+```powershell
+python -m pytest tests -v
+```
 
----
+Worker pipeline tests:
 
-## Output
+```powershell
+python -m pytest tests/unit/test_worker_pipeline.py -v
+```
 
-The [`output/`](output/) directory contains documented results from verified runs:
+Frontend checks:
 
-- **[`pipeline_output.txt`](output/pipeline_output.txt)** — Full `main.py` output including circuit diagrams, accuracy metrics, resource analysis, noise simulation, and topology comparison
-- **[`test_results.txt`](output/test_results.txt)** — Complete pytest output showing all 40 tests passing
+```powershell
+cd frontend
+npm run lint
+npm test
+npm run e2e
+npm run build
+```
 
----
+CI automation is configured in [ci_cd/.github/workflows/quality-gates.yml](ci_cd/.github/workflows/quality-gates.yml).
+
+## Deployment Notes
+
+- Vercel root directory must be set to [frontend/](frontend/) for the Next.js app.
+- Set auth, worker, and storage env vars before production traffic.
+- Deploy worker separately (for example Railway/Render/Docker host) and set WORKER_BASE_URL accordingly.
+- Full checklist: [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md)
+- Env reference: [VERCEL_ENV.md](VERCEL_ENV.md)
+
+## Additional Docs
+
+- Frontend details: [frontend/README.md](frontend/README.md)
+- Worker details: [worker/README.md](worker/README.md)
+- Implementation checkpoint: [checkpoint(current progress).md](checkpoint(current progress).md)
+- System plan: [Quantum-Classical Hybrid ML System Implementation Plan.md](Quantum-Classical%20Hybrid%20ML%20System%20Implementation%20Plan.md)
 
 ## License
 
-MIT License — see [`pyproject.toml`](pyproject.toml) for details.
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes
-4. Push and open a Pull Request
-
----
-
-## Acknowledgments
-
-- [Google Cirq](https://quantumai.google/cirq) — Quantum circuit framework
-- [TensorFlow Quantum](https://www.tensorflow.org/quantum) — Hybrid quantum-classical ML
-- [scikit-learn](https://scikit-learn.org/) — Classical ML baselines
+MIT License. See [LICENSE](LICENSE).

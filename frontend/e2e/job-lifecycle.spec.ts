@@ -6,14 +6,53 @@
 
 import { test, expect } from '@playwright/test'
 
+test.describe.configure({ timeout: 120000 })
+
+async function fillField(
+  field: import('@playwright/test').Locator,
+  value: string
+) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await field.click()
+    await field.fill('')
+    await field.type(value, { delay: 20 })
+
+    if ((await field.inputValue()) === value) {
+      return
+    }
+  }
+
+  await expect(field).toHaveValue(value, { timeout: 10000 })
+}
+
+async function login(page: import('@playwright/test').Page) {
+  await page.goto('/login')
+  const emailInput = page.getByLabel('Email')
+  const passwordInput = page.getByLabel('Password')
+  await expect(emailInput).toBeVisible()
+  await expect(passwordInput).toBeVisible()
+
+  await fillField(emailInput, 'admin@example.com')
+  await fillField(passwordInput, 'password123')
+
+  const loginResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/auth/login') &&
+      response.request().method() === 'POST',
+    { timeout: 15000 }
+  )
+
+  await page.getByRole('button', { name: /^sign in$/i }).click()
+  const loginResponse = await loginResponsePromise
+
+  expect(loginResponse.ok()).toBe(true)
+  await expect(page).toHaveURL('/dashboard', { timeout: 15000 })
+}
+
 test.describe('Integrated Job Lifecycle Tests', () => {
   test('complete flow: upload CSV → create job → poll → results', async ({ page, context }) => {
     // Step 1: Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL('/dashboard', { timeout: 5000 })
+    await login(page)
 
     // Step 2: Navigate to CSV upload
     const datasetSelect = page.locator('select').nth(1)
@@ -92,11 +131,7 @@ test.describe('Integrated Job Lifecycle Tests', () => {
 
   test('job persistence: job survives page refresh', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Submit a simple training job
     const jobTypeSelect = page.locator('select').first()
@@ -120,11 +155,7 @@ test.describe('Integrated Job Lifecycle Tests', () => {
 
   test('multiple jobs can be submitted sequentially', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     const jobTypeSelect = page.locator('select').first()
     const datasetSelect = page.locator('select').nth(1)
@@ -164,11 +195,7 @@ test.describe('Integrated Job Lifecycle Tests', () => {
 
   test('error handling: invalid CSV fails gracefully', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Select CSV dataset
     const datasetSelect = page.locator('select').nth(1)
@@ -195,11 +222,7 @@ test.describe('Integrated Job Lifecycle Tests', () => {
 
   test('dataset switching clears CSV upload state', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     const datasetSelect = page.locator('select').nth(1)
 
@@ -207,15 +230,25 @@ test.describe('Integrated Job Lifecycle Tests', () => {
     await datasetSelect.selectOption('csv_upload')
     const fileInput = page.locator('input[type="file"]')
     const csvContent = 'f1,f2,l\n0.5,0.6,0\n0.7,0.8,1'
+
+    const uploadResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/uploads') &&
+        response.request().method() === 'POST',
+      { timeout: 10000 }
+    )
+
     await fileInput.setInputFiles({
       name: 'test.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from(csvContent),
     })
 
-    await page.waitForTimeout(1000)
+    const uploadResponse = await uploadResponsePromise
+    expect(uploadResponse.ok()).toBe(true)
+
     let uploadedText = page.locator('text=/[Uu]ploaded.*test\\.csv/')
-    await expect(uploadedText).toBeVisible({ timeout: 2000 })
+    await expect(uploadedText).toBeVisible({ timeout: 5000 })
 
     // Switch to different dataset
     await datasetSelect.selectOption('iris')
@@ -231,11 +264,7 @@ test.describe('Integrated Job Lifecycle Tests', () => {
 
   test('config JSON validation', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     const textarea = page.locator('textarea')
     const submitButton = page.locator('button:has-text("Submit")')
@@ -271,18 +300,10 @@ test.describe('Integrated Job Lifecycle Tests', () => {
     const page2 = await context.newPage()
 
     // User 1 logs in
-    await page1.goto('/login')
-    await page1.fill('input[type="email"]', 'admin@example.com')
-    await page1.fill('input[type="password"]', 'password123')
-    await page1.click('button[type="submit"]')
-    await expect(page1).toHaveURL('/dashboard')
+    await login(page1)
 
     // User 2 logs in (same credential for testing, but tracked separately)
-    await page2.goto('/login')
-    await page2.fill('input[type="email"]', 'admin@example.com')
-    await page2.fill('input[type="password"]', 'password123')
-    await page2.click('button[type="submit"]')
-    await expect(page2).toHaveURL('/dashboard')
+    await login(page2)
 
     // User 1 submits job
     const submitButton1 = page1.locator('button:has-text("Submit")').first()
@@ -307,11 +328,7 @@ test.describe('Integrated Job Lifecycle Tests', () => {
 test.describe('Job Status Polling Accuracy', () => {
   test('job status updates correctly during execution', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Submit job
     const submitButton = page.locator('button:has-text("Submit")')

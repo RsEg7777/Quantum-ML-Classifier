@@ -1,5 +1,47 @@
 import { test, expect } from '@playwright/test'
 
+async function fillField(
+  field: import('@playwright/test').Locator,
+  value: string
+) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await field.click()
+    await field.fill('')
+    await field.type(value, { delay: 20 })
+
+    if ((await field.inputValue()) === value) {
+      return
+    }
+  }
+
+  await expect(field).toHaveValue(value, { timeout: 10000 })
+}
+
+async function login(page: import('@playwright/test').Page) {
+  await page.goto('/login')
+
+  const emailInput = page.getByLabel('Email')
+  const passwordInput = page.getByLabel('Password')
+  await expect(emailInput).toBeVisible()
+  await expect(passwordInput).toBeVisible()
+
+  await fillField(emailInput, 'admin@example.com')
+  await fillField(passwordInput, 'password123')
+
+  const loginResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/auth/login') &&
+      response.request().method() === 'POST',
+    { timeout: 15000 }
+  )
+
+  await page.getByRole('button', { name: /^sign in$/i }).click()
+  const loginResponse = await loginResponsePromise
+
+  expect(loginResponse.ok()).toBe(true)
+  await expect(page).toHaveURL('/dashboard', { timeout: 15000 })
+}
+
 test.describe('End-to-End: Complete User Flow', () => {
   test('should redirect unauthenticated user to login', async ({ page }) => {
     await page.goto('/dashboard')
@@ -8,7 +50,7 @@ test.describe('End-to-End: Complete User Flow', () => {
 
   test('should display login page', async ({ page }) => {
     await page.goto('/login')
-    await expect(page.locator('h1')).toContainText('Sign In')
+    await expect(page.locator('h1')).toContainText(/sign in/i)
     await expect(page.locator('input[type="email"]')).toBeVisible()
     await expect(page.locator('input[type="password"]')).toBeVisible()
     await expect(page.locator('button[type="submit"]')).toBeVisible()
@@ -17,31 +59,34 @@ test.describe('End-to-End: Complete User Flow', () => {
   test('should reject invalid credentials', async ({ page }) => {
     await page.goto('/login')
 
+    const emailInput = page.getByLabel('Email')
+    const passwordInput = page.getByLabel('Password')
+    await expect(emailInput).toBeVisible()
+    await expect(passwordInput).toBeVisible()
+
     // Fill incorrect credentials
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'wrong_password')
+    await fillField(emailInput, 'admin@example.com')
+    await fillField(passwordInput, 'wrong_password')
+
+    const loginResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/auth/login') &&
+        response.request().method() === 'POST',
+      { timeout: 15000 }
+    )
 
     // Submit form
-    await page.click('button[type="submit"]')
+    await page.getByRole('button', { name: /^sign in$/i }).click()
+    const loginResponse = await loginResponsePromise
+    expect(loginResponse.status()).toBe(401)
 
     // Should show error and stay on login page
-    await page.waitForTimeout(500)
     const errorText = page.locator('text=/[Ii]nvalid credentials/')
-    await expect(errorText).toBeVisible({ timeout: 3000 })
+    await expect(errorText).toBeVisible({ timeout: 5000 })
   })
 
   test('should login with valid credentials', async ({ page }) => {
-    await page.goto('/login')
-
-    // Fill credentials
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-
-    // Submit form
-    await page.click('button[type="submit"]')
-
-    // Should redirect to dashboard on success
-    await expect(page).toHaveURL('/dashboard', { timeout: 5000 })
+    await login(page)
     
     // Dashboard should be visible
     await expect(page.locator('h1')).toContainText('Job Builder')
@@ -49,13 +94,7 @@ test.describe('End-to-End: Complete User Flow', () => {
 
   test('should display dataset selector on dashboard', async ({ page }) => {
     // Login first
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    // Wait for dashboard to load
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Verify dataset selector exists
     const datasetSelect = page.locator('select').nth(1) // Second select is dataset
@@ -68,13 +107,7 @@ test.describe('End-to-End: Complete User Flow', () => {
 
   test('should create a training job with built-in dataset', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    // Wait for dashboard
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
     
     // Wait for datasets to load
     await page.waitForTimeout(500)
@@ -99,13 +132,7 @@ test.describe('End-to-End: Complete User Flow', () => {
 
   test('should require CSV upload when selecting csv_upload dataset', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    // Wait for dashboard
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Select csv_upload dataset
     const datasetSelect = page.locator('select').nth(1)
@@ -118,13 +145,7 @@ test.describe('End-to-End: Complete User Flow', () => {
 
   test('should upload CSV file', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    // Wait for dashboard
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Select csv_upload dataset
     const datasetSelect = page.locator('select').nth(1)
@@ -160,12 +181,7 @@ test.describe('End-to-End: Complete User Flow', () => {
 
   test('should allow logout from dashboard', async ({ page }) => {
     // Login first
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Find and click logout button
     const logoutButton = page.locator('button:has-text("Sign out")')
@@ -178,12 +194,7 @@ test.describe('End-to-End: Complete User Flow', () => {
 
   test('should persist session across page refreshes', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Refresh page
     await page.reload()
@@ -196,12 +207,7 @@ test.describe('End-to-End: Complete User Flow', () => {
 test.describe('Dashboard Interaction', () => {
   test('should display job form with all fields', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Check all form elements exist
     const jobTypeSelect = page.locator('select').first()
@@ -215,12 +221,7 @@ test.describe('Dashboard Interaction', () => {
 
   test('should change job type', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Change job type
     const jobTypeSelect = page.locator('select').first()
@@ -231,12 +232,7 @@ test.describe('Dashboard Interaction', () => {
 
   test('should change dataset', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Change dataset
     const datasetSelect = page.locator('select').nth(1)
@@ -258,12 +254,7 @@ test.describe('Error Handling', () => {
 
   test('logout should clear session', async ({ page }) => {
     // Login
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button[type="submit"]')
-
-    await expect(page).toHaveURL('/dashboard')
+    await login(page)
 
     // Logout
     const logoutButton = page.locator('button:has-text("Sign out")')

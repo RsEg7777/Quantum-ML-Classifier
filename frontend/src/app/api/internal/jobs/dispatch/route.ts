@@ -11,7 +11,7 @@ const DispatchPayloadSchema = z.object({
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.WORKER_WEBHOOK_SECRET;
   if (!secret) {
-    return process.env.NODE_ENV !== "production";
+    return false;
   }
 
   const token = request.headers.get("x-dispatch-secret");
@@ -19,6 +19,13 @@ function isAuthorized(request: NextRequest): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  if (!process.env.WORKER_WEBHOOK_SECRET) {
+    return NextResponse.json(
+      { error: "Server dispatch secret is not configured" },
+      { status: 500 }
+    );
+  }
+
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized dispatch" }, { status: 401 });
   }

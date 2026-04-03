@@ -119,23 +119,15 @@ def run(payload: CreateJobInput):
         result = run_job(payload)
         duration = time.time() - start_time
         metrics.record_success(duration)
-        
-        # Broadcast job completion to all connected clients
-        completion_message = {
-            "type": "job_completed",
-            "jobId": payload.job_id,
-            "status": "completed",
-            "result": result.model_dump(),
-        }
-        
-        # We need to run async broadcast in a sync context
-        # For now, return the result and frontend will pull via WebSocket or poll
+
+        # Keep /jobs/run synchronous and return typed result.
+        # Frontend currently relies on API polling for status updates.
         return JSONResponse(
             content={
                 "status": "completed",
                 "result": result.model_dump(),
             }
         )
-    except Exception as e:
+    except Exception:
         metrics.record_failure()
         raise

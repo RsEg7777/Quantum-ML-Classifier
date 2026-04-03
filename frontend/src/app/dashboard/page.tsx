@@ -7,6 +7,16 @@ import type { DatasetInfo, JobSummary, JobType } from "@/lib/contracts/jobs";
 
 type JobsResponse = { jobs: JobSummary[] };
 type DatasetsResponse = { datasets: DatasetInfo[] };
+type HealthResponse = {
+  worker?: {
+    reachable?: boolean;
+    status?: string;
+    url?: string;
+  };
+  config?: {
+    usingLocalWorkerInProd?: boolean;
+  };
+};
 
 type FormState = {
   jobType: JobType;
@@ -23,6 +33,10 @@ export default function DashboardPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [csvBlobUrl, setCsvBlobUrl] = useState<string | null>(null);
   const [csvFilename, setCsvFilename] = useState<string | null>(null);
+  const [workerReachable, setWorkerReachable] = useState<boolean | null>(null);
+  const [workerStatus, setWorkerStatus] = useState<string>("unknown");
+  const [workerEndpoint, setWorkerEndpoint] = useState<string>("-");
+  const [workerMisconfigured, setWorkerMisconfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
     jobType: "training",
@@ -59,6 +73,21 @@ export default function DashboardPage() {
 
     const payload = (await response.json()) as JobsResponse;
     setJobs(payload.jobs);
+  }
+
+  async function loadHealth() {
+    const response = await fetch("/api/health", { cache: "no-store" });
+    if (!response.ok) {
+      setWorkerReachable(false);
+      setWorkerStatus(`health_error_${response.status}`);
+      return;
+    }
+
+    const payload = (await response.json()) as HealthResponse;
+    setWorkerReachable(Boolean(payload.worker?.reachable));
+    setWorkerStatus(payload.worker?.status ?? "unknown");
+    setWorkerEndpoint(payload.worker?.url ?? "-");
+    setWorkerMisconfigured(Boolean(payload.config?.usingLocalWorkerInProd));
   }
 
   async function submitJob(event: FormEvent<HTMLFormElement>) {
@@ -142,6 +171,7 @@ export default function DashboardPage() {
       const init = async () => {
         await loadDatasets();
         await loadJobs();
+        await loadHealth();
       };
       init().catch((err) => setError("Failed to initialize: " + String(err)));
     }
@@ -304,6 +334,26 @@ export default function DashboardPage() {
             <Metric label="Completed" value={metrics.completed} />
             <Metric label="Failed" value={metrics.failed} />
           </div>
+
+          <div className="surface-muted mt-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span
+                className={`health-dot ${workerReachable ? "online" : "offline"}`}
+                aria-hidden="true"
+              />
+              <p className="text-sm text-slate-700">
+                Worker connectivity: <strong>{workerReachable ? "Online" : "Offline"}</strong>
+              </p>
+            </div>
+            <p className="text-xs text-slate-600">{workerStatus}</p>
+          </div>
+
+          <p className="mt-2 text-xs text-slate-500">Endpoint: {workerEndpoint}</p>
+          {workerMisconfigured ? (
+            <p className="mt-1 text-xs font-semibold text-amber-700">
+              Warning: production is pointing to localhost worker URL.
+            </p>
+          ) : null}
 
           <div className="mt-6 space-y-3">
             {jobs.length === 0 ? (

@@ -81,6 +81,29 @@ let schemaInitialized = false;
 const localDataDir = path.join(process.cwd(), ".local-data");
 const localJobsPath = path.join(localDataDir, "jobs.json");
 
+function isPlaceholderWorkerUrl(url: string): boolean {
+  if (!url) {
+    return true;
+  }
+
+  if (/your-worker-domain|your-deployed-worker-url|example\.com/i.test(url)) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === "your-worker-domain" ||
+      host === "your-deployed-worker-url.com" ||
+      host === "example.com" ||
+      host.endsWith(".example.com")
+    );
+  } catch {
+    return true;
+  }
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -219,6 +242,26 @@ async function dispatchJob(id: string, input: CreateJobInput): Promise<void> {
   const existing = await getJob(id);
   if (!existing || existing.status === "completed") {
     return;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    if (/localhost|127\.0\.0\.1/.test(workerBaseUrl)) {
+      await updateJob(id, {
+        status: "failed",
+        message:
+          "WORKER_BASE_URL points to localhost in production. Set it to your deployed worker URL.",
+      });
+      return;
+    }
+
+    if (isPlaceholderWorkerUrl(workerBaseUrl)) {
+      await updateJob(id, {
+        status: "failed",
+        message:
+          "WORKER_BASE_URL is not configured with a real public worker URL. Update Vercel env and redeploy.",
+      });
+      return;
+    }
   }
 
   await updateJob(id, {
